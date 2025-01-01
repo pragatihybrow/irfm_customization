@@ -242,3 +242,20 @@ app_license = "mit"
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
 
+doctype_js = {
+    "Sales Order": "irfm_custom/public/js/sales_order.js"
+}
+
+doc_events = {
+    "Sales Order": {
+        "validate": [
+            "irfm_custom.irfm.override.sales_order.update_custom_stock",
+            "irfm_custom.irfm.override.sales_order.update_custom_states"
+        ],
+        "on_submit": [
+            "irfm_custom.irfm.override.sales_order.create_pick_list",
+            "irfm_custom.irfm.override.sales_order.on_submit_send_email",
+            "irfm_custom.irfm.override.sales_order.on_submit_send_email_for_pending_approval"
+        ],
+    }
+}
