@@ -16,6 +16,7 @@ def create_pick_list(doc, method):
     pick_list.company = doc.company
     pick_list.purpose = "Delivery"
     pick_list.parent_warehouse = doc.set_warehouse
+    pick_list.custom_sales_order = doc.name
 
     for item in doc.items:
         pick_list.append("locations", {
@@ -25,6 +26,7 @@ def create_pick_list(doc, method):
             "warehouse": item.warehouse,
             "stock_qty":item.stock_qty,
             "picked_qty":item.picked_qty,
+            "sales_order":doc.name
 
         })
     pick_list.save(ignore_permissions=True)

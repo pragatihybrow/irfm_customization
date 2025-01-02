@@ -257,5 +257,8 @@ doc_events = {
             "irfm_custom.irfm.override.sales_order.on_submit_send_email",
             "irfm_custom.irfm.override.sales_order.on_submit_send_email_for_pending_approval"
         ],
+    },
+    "Pick List": {
+        "on_submit": "irfm_custom.irfm.override.pick_list.create_delivery_note_from_picklist"
     }
 }
