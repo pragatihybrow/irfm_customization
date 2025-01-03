@@ -50,7 +50,7 @@ def update_custom_states(doc, method):
     if available_count == total_items:
         doc.custom_states = "Approved"
     elif available_count < total_items:
-        doc.custom_states = "Pending For Approval"
+        doc.custom_states = "Approved"
     elif available_count == 0:
         doc.custom_states = "Pending For Approval"
         raise ValueError("Document cannot be submitted as no items are available. Please review before proceeding.")
