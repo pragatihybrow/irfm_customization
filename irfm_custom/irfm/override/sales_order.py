@@ -32,30 +32,28 @@ def create_pick_list(doc, method):
     pick_list.save(ignore_permissions=True)
 
 
-
-
-
-
 @frappe.whitelist()
 def update_custom_states(doc, method):
     available_count = 0
+    total_items = len(doc.items)
 
     # Iterate through the items in the child table
     for item in doc.items:
         if item.custom_stock == "Available":
             available_count += 1
 
-    # Check if all rows have custom_stock marked as "Available"
-    total_items = len(doc.items)
+    # Update custom_states based on the availability
     if available_count == total_items:
+        # All items are available
         doc.custom_states = "Approved"
-    elif available_count < total_items:
+    elif available_count > 0:
+        # Some items are available
         doc.custom_states = "Approved"
-    elif available_count == 0:
+    else:
+        # No items are available
         doc.custom_states = "Pending For Approval"
-        raise ValueError("Document cannot be submitted as no items are available. Please review before proceeding.")
 
-      
+
 
 @frappe.whitelist()
 def on_submit_send_email(doc, method):
