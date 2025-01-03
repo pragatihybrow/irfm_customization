@@ -260,5 +260,11 @@ doc_events = {
     },
     "Pick List": {
         "on_submit": "irfm_custom.irfm.override.pick_list.create_delivery_note_from_picklist"
+    },
+    "Delivery Note": {
+        "on_submit":[ "irfm_custom.irfm.override.delivery_note.create_sales_invoice_from_delivery_note",
+                      "irfm_custom.irfm.override.delivery_note.create_shipment_from_delivery_note"]
+
     }
+    
 }
