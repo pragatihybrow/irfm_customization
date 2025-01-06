@@ -48,10 +48,10 @@ def update_custom_states(doc, method):
         doc.custom_states = "Approved"
     elif available_count > 0:
         # Some items are available
-        doc.custom_states = "Approved"
+        doc.custom_states = "Pending For Approval"
     else:
         # No items are available
-        doc.custom_states = "Pending For Approval"
+        doc.custom_states = "Stock Unavailable"
 
 
 
