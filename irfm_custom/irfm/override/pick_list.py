@@ -1,5 +1,7 @@
 import frappe
 from frappe import _
+from frappe.model.document import Document
+from erpnext.stock.doctype.pick_list.pick_list import PickList
 
 @frappe.whitelist()
 def create_delivery_note_from_picklist(doc, method):
@@ -36,3 +38,29 @@ def create_delivery_note_from_picklist(doc, method):
 
     delivery_note.save(ignore_permissions=True)
     frappe.msgprint(_("Delivery Note {0} created successfully").format(delivery_note.name))
+
+
+
+
+class  location_ct(Document):
+    @frappe.whitelist()
+    def aggregate_item_qty(self):
+        locations = self.get("locations")
+        self.item_count_map = {}
+        
+        # Iterate through locations to process items
+        for item in locations:
+            if not item.item_code:
+                frappe.throw(f"Row #{item.idx}: Item Code is Mandatory")
+
+            # Skip non-stock items unless part of a valid product bundle
+            if not cint(
+                frappe.get_cached_value("Item", item.item_code, "is_stock_item")
+            ) and not frappe.db.exists("Product Bundle", {"new_item_code": item.item_code, "disabled": 0}):
+                continue
+
+            # Maintain count of each item (useful to limit get query)
+            self.item_count_map.setdefault(item.item_code, 0)
+            self.item_count_map[item.item_code] += item.qty
+
+        return locations

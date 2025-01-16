@@ -242,9 +242,9 @@ app_license = "mit"
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
 
-doctype_js = {
-    "Sales Order": "irfm_custom/public/js/sales_order.js"
-}
+# doctype_js = {
+#     "Sales Order": "irfm_custom/public/js/sales_order.js"
+# }
 
 doc_events = {
     "Sales Order": {
@@ -267,4 +267,9 @@ doc_events = {
 
     }
     
+}
+
+
+override_doctype_class = {
+	"Pick List": "irfm_custom.irfm.override.pick_list.location_ct"
 }

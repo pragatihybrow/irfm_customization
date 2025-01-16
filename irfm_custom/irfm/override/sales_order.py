@@ -1,4 +1,5 @@
 import frappe
+import math
 
 @frappe.whitelist()
 def update_custom_stock(doc, method):
@@ -7,7 +8,6 @@ def update_custom_stock(doc, method):
             item.custom_stock = "Available"
         else:
             item.custom_stock = "Unavailable"
-
 @frappe.whitelist()
 def create_pick_list(doc, method):
     pick_list = frappe.new_doc("Pick List")
@@ -19,17 +19,25 @@ def create_pick_list(doc, method):
     pick_list.custom_sales_order = doc.name
 
     for item in doc.items:
-        pick_list.append("locations", {
-            "item_code": item.item_code,
-            "qty": item.qty,
-            "stock_uom": item.stock_uom,
-            "warehouse": item.warehouse,
-            "stock_qty":item.stock_qty,
-            "picked_qty":item.picked_qty,
-            "sales_order":doc.name
+        # Explicit check for custom_total_pack
+        if item.custom_total_pack:
+            remaining_qty = item.qty  # Start with the total quantity
+            for i in range(int(item.custom_total_pack)):  # Iterate for each pack
+                # Assign qty to the current row
+                current_pack_qty = min(item.custom_pack_of, remaining_qty)
+                pick_list.append("locations", {
+                    "item_code": item.item_code,
+                    "qty": current_pack_qty,  # Set current pack qty
+                    "stock_uom": item.stock_uom,
+                    "warehouse": item.warehouse,
+                    "stock_qty": current_pack_qty,  # Adjust stock_qty
+                    "picked_qty": 0,  # Default to 0 for picked_qty
+                    "sales_order": doc.name
+                })
+                remaining_qty -= current_pack_qty  # Reduce remaining quantity
 
-        })
     pick_list.save(ignore_permissions=True)
+
 
 
 @frappe.whitelist()
