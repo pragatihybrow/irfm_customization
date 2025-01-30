@@ -137,6 +137,16 @@ def create_delivery_note_from_picklist(doc, method):
     delivery_note.save(ignore_permissions=True)
     frappe.msgprint(_("Delivery Note {0} created successfully").format(delivery_note.name))
 
+@frappe.whitelist()
+def get_status(doc, docstatus):  # Include 'self' as the first parameter
+    if doc.docstatus == 0:
+        doc.status ="Draft"
+    elif doc.docstatus == 1:
+        doc.status = "Completed"
+    elif doc.docstatus == 2:
+        doc.status = "Cancelled"
+   
+
 
 class location_ct(Document):
     @frappe.whitelist()
@@ -330,5 +340,3 @@ class location_ct(Document):
         query = query.for_update()
 
         return query.run(as_dict=True)
-
-
