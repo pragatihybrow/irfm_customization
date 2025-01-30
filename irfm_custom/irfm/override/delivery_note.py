@@ -24,7 +24,8 @@ def create_sales_invoice_from_delivery_note(doc, method):
             "rate": item.rate,
             "amount": item.amount,
             "description": item.description,
-            "cost_center": item.cost_center
+            "cost_center": item.cost_center,
+            "delivery_note":doc.name
         })
 
     # Add taxes from Delivery Note (if applicable)
