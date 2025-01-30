@@ -265,11 +265,16 @@ doc_events = {
         "on_submit":[ "irfm_custom.irfm.override.delivery_note.create_sales_invoice_from_delivery_note",
                       "irfm_custom.irfm.override.delivery_note.create_shipment_from_delivery_note"]
 
-    }
+    },
+     "Purchase Receipt": {
+        "on_submit": "irfm_custom.irfm.override.purchase_receipt.create_purchase_invoice_from_grn"
+    },
     
 }
 
 
 override_doctype_class = {
-	"Pick List": "irfm_custom.irfm.override.pick_list.location_ct"
+	"Pick List": "irfm_custom.irfm.override.pick_list.location_ct",
+    "Delivery Note": "irfm_custom.irfm.override.delivery_note.newdeliverynote",
+
 }
