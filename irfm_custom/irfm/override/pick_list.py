@@ -122,6 +122,7 @@ def create_delivery_note_from_picklist(doc, method):
             "qty": item.picked_qty,
             "uom": item.stock_uom,
             "warehouse": item.warehouse,
+            "custom_box_barcode":item.custom_barcode
         })
 
         # Fetch taxes_and_charges from Sales Order
@@ -142,7 +143,7 @@ def get_status(doc, docstatus):  # Include 'self' as the first parameter
     if doc.docstatus == 0:
         doc.status ="Draft"
     elif doc.docstatus == 1:
-        doc.status = "Completed"
+        doc.status= "Completed"
     elif doc.docstatus == 2:
         doc.status = "Cancelled"
    
