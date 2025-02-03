@@ -101,6 +101,7 @@ from erpnext.stock.serial_batch_bundle import (
 )
 
 
+
 @frappe.whitelist()
 def create_delivery_note_from_picklist(doc, method):
     # Create a new Delivery Note
@@ -110,8 +111,14 @@ def create_delivery_note_from_picklist(doc, method):
     delivery_note.set_warehouse = doc.parent_warehouse
     delivery_note.company = doc.company
     delivery_note.delivery_date = frappe.utils.today()  # Set delivery date as today's date
-    sales_doc = frappe.get_doc("Sales Order", doc.custom_sales_order)
-    delivery_note.taxes_and_charges = sales_doc.taxes_and_charges
+    
+    # Get the first item to set custom_sales_order from
+    if doc.locations:
+        first_item = doc.locations[0]
+        sales_order_doc = frappe.get_doc("Sales Order", first_item.sales_order)
+        delivery_note.custom_sales_order = first_item.sales_order  # Set custom_sales_order from first item
+    
+    delivery_note.taxes_and_charges = sales_order_doc.taxes_and_charges
 
     # Store tax details from Sales Order
     for item in doc.locations:
@@ -122,8 +129,7 @@ def create_delivery_note_from_picklist(doc, method):
             "qty": item.picked_qty,
             "uom": item.stock_uom,
             "warehouse": item.warehouse,
-            "custom_box_barcode":item.custom_barcode,
-            "custom_sales_order":item.sales_order
+            "custom_box_barcode": item.custom_barcode,
         })
 
         # Fetch taxes_and_charges from Sales Order
@@ -139,18 +145,6 @@ def create_delivery_note_from_picklist(doc, method):
     delivery_note.save(ignore_permissions=True)
     frappe.msgprint(_("Delivery Note {0} created successfully").format(delivery_note.name))
 
-# @frappe.whitelist()
-# def get_status(doc, docstatus, update_modified=True):
-#     if doc.docstatus == 0:
-#         doc.status = "Open"
-#     elif doc.docstatus == 1:
-#         doc.status = "Completed"
-#     elif doc.docstatus == 2:
-#         doc.status = "Cancelled"
-    
-#     doc.save(ignore_permissions=True)  # Save changes
-#     frappe.db.commit()  # Commit transaction
-#     return doc.status
 
 @frappe.whitelist()
 def get_status(doc, docstatus, update_modified=True):
