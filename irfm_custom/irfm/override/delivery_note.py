@@ -91,6 +91,26 @@ def create_shipment_from_delivery_note(doc, method):
     return shipment  
 
 
+
+@frappe.whitelist()
+def on_submit_delivery_note(doc, method):
+    # Loop through the items in the Delivery Note's child table
+    for item in doc.items:
+        if item.sales_order:
+            # Get the Sales Order document linked in the item
+            sales_order = frappe.get_doc("Sales Order", item.sales_order)
+            
+            # Check if the items in the Sales Order exist
+            for so_item in sales_order.items:
+                # If the item matches, update the custom_delivery_note field
+                if so_item.item_code == item.item_code:
+                    so_item.custom_delivery_note = doc.name
+                    break
+            
+            # Save the changes in the Sales Order
+            sales_order.save()
+
+
 class newdeliverynote(SellingController):
 	# begin: auto-generated types
 	# This code is auto-generated. Do not modify anything in this block.

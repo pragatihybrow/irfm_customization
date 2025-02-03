@@ -122,7 +122,8 @@ def create_delivery_note_from_picklist(doc, method):
             "qty": item.picked_qty,
             "uom": item.stock_uom,
             "warehouse": item.warehouse,
-            "custom_box_barcode":item.custom_barcode
+            "custom_box_barcode":item.custom_barcode,
+            "custom_sales_order":item.sales_order
         })
 
         # Fetch taxes_and_charges from Sales Order
@@ -138,15 +139,32 @@ def create_delivery_note_from_picklist(doc, method):
     delivery_note.save(ignore_permissions=True)
     frappe.msgprint(_("Delivery Note {0} created successfully").format(delivery_note.name))
 
+# @frappe.whitelist()
+# def get_status(doc, docstatus, update_modified=True):
+#     if doc.docstatus == 0:
+#         doc.status = "Open"
+#     elif doc.docstatus == 1:
+#         doc.status = "Completed"
+#     elif doc.docstatus == 2:
+#         doc.status = "Cancelled"
+    
+#     doc.save(ignore_permissions=True)  # Save changes
+#     frappe.db.commit()  # Commit transaction
+#     return doc.status
+
 @frappe.whitelist()
-def get_status(doc, docstatus):  # Include 'self' as the first parameter
+def get_status(doc, docstatus, update_modified=True):
     if doc.docstatus == 0:
-        doc.status ="Draft"
+        doc.custom_status_c = "Open"
     elif doc.docstatus == 1:
-        doc.status= "Completed"
+        doc.custom_status_c = "Completed"
     elif doc.docstatus == 2:
-        doc.status = "Cancelled"
-   
+        doc.custom_status_c = "Cancelled"
+    
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+    return doc.custom_status_c
+
 
 
 class location_ct(Document):
