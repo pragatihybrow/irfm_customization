@@ -264,11 +264,10 @@ doc_events = {
     },
     "Delivery Note": {
         "on_submit":[ "irfm_custom.irfm.override.delivery_note.create_sales_invoice_from_delivery_note",
-                      "irfm_custom.irfm.override.delivery_note.create_shipment_from_delivery_note",
-                      "irfm_custom.irfm.override.delivery_note.on_submit_of_delivery_note",
-]
-
+                      "irfm_custom.irfm.override.delivery_note.create_shipment_from_delivery_note",        ],
+        "validate":"irfm_custom.irfm.override.delivery_note.on_submit_of_delivery_note",
     },
+
      "Purchase Receipt": {
         "on_submit": "irfm_custom.irfm.override.purchase_receipt.create_purchase_invoice_from_grn"
     },

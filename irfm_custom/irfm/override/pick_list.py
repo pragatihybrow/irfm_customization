@@ -101,18 +101,35 @@ def create_delivery_note_from_picklist(doc, method):
     frappe.msgprint(_("Delivery Note {0} created successfully").format(delivery_note.name))
 
 
+# @frappe.whitelist()
+# def get_status(doc, docstatus, update_modified=True):
+#     if doc.docstatus == 0:
+#         doc.status = "Open"
+#     elif doc.docstatus == 1:
+#         doc.status = "Completed"
+#     elif doc.docstatus == 2:
+#         doc.status = "Cancelled"
+    
+#     doc.save(ignore_permissions=True)
+#     frappe.db.commit()
+#     return doc.status
+
 @frappe.whitelist()
 def get_status(doc, docstatus, update_modified=True):
+    """Update status field based on docstatus after submission."""
+
+    # Determine status based on docstatus
     if doc.docstatus == 0:
-        doc.custom_status_c = "Open"
+        new_status = "Open"
     elif doc.docstatus == 1:
-        doc.custom_status_c = "Completed"
+        new_status = "Completed"
     elif doc.docstatus == 2:
-        doc.custom_status_c = "Cancelled"
+        new_status = "Cancelled"
+
+    frappe.db.set_value(doc.doctype, doc.name, "status", new_status, update_modified=update_modified)
     
-    doc.save(ignore_permissions=True)
-    frappe.db.commit()
-    return doc.custom_status_c
+    return new_status
+
 
 
 
