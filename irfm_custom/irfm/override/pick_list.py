@@ -80,6 +80,7 @@ def create_delivery_note_from_picklist(doc, method):
             "uom": item.stock_uom,
             "warehouse": item.warehouse,
             "custom_box_barcode": item.custom_barcode,
+            "custom_barcode_image": item.custom_barcode_image,
             "against_sales_order": item.sales_order,  # Ensure this is set correctly
             "so_detail": sales_order_item  # Correctly linked to Sales Order Item ID
         })

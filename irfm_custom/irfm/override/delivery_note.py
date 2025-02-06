@@ -1459,6 +1459,8 @@ def make_inter_company_transaction(doctype, source_name, target_doc=None):
         # Add the custom_box_barcode from Delivery Note Item to Purchase Receipt Item
         if source.get("custom_box_barcode"):
             target.custom_box_barcode = source.custom_box_barcode
+            target.custom_barcode_image = source.custom_box_barcode
+		
 
     doclist = get_mapped_doc(
         doctype,
