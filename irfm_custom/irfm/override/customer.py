@@ -1,6 +1,7 @@
 import frappe
 import pytz
 from datetime import datetime, date
+from datetime import datetime, timedelta
 
 
 def check_box(doc, method):
@@ -18,52 +19,53 @@ def check_box(doc, method):
         setattr(doc, first_checked, 0)  # Uncheck it
 
 
-        
 def calculate_time_difference_in_custom_timezone(doc, method):
-    # Prevent recursion using a flag (ensure it's not already being calculated)
     if doc.get('__is_calculating_time_difference', False):
         print("Recursion detected. Skipping calculation.")
         return
     
-    # Set flag to indicate we're calculating the time difference
     doc.__is_calculating_time_difference = True
     print(f"Started calculating time difference for {doc.name}")
 
     try:
-        # Get the current time in America/Toronto timezone
+        # Get the current time in UTC
+        now_utc = datetime.now(pytz.utc)
+
+        # Convert to respective time zones
         toronto_tz = pytz.timezone('America/Toronto')
-        toronto_time = datetime.now(toronto_tz).strftime('%H:%M:%S')  # Only time, no date
-        print(f"Toronto Time (timezone-aware): {toronto_time}")
+        custom_tz = pytz.timezone(doc.custom_time_zone)
 
-        # Get the current time in the custom time zone from the document (timezone-aware)
-        custom_time_zone = doc.custom_time_zone  # Ensure this field exists in your doc
-        custom_tz = pytz.timezone(custom_time_zone)
-        custom_time = datetime.now(custom_tz).strftime('%H:%M:%S')  # Only time, no date
-        print(f"Custom Time ({custom_time_zone}, timezone-aware): {custom_time}")
+        toronto_time = now_utc.astimezone(toronto_tz).time()  # Extract HH:MM:SS
+        custom_time = now_utc.astimezone(custom_tz).time()  # Extract HH:MM:SS
 
-        # Calculate the time difference
-        toronto_time_obj = datetime.strptime(toronto_time, '%H:%M:%S')  # Convert to datetime object for calculation
-        custom_time_obj = datetime.strptime(custom_time, '%H:%M:%S')  # Convert to datetime object for calculation
+        # Debugging prints
+        print(f"Toronto Time (HH:MM:SS): {toronto_time}")
+        print(f"Custom Time ({doc.custom_time_zone}, HH:MM:SS): {custom_time}")
 
-        # Calculate the time difference
-        time_difference = custom_time_obj - toronto_time_obj
-        print(f"Time Difference in raw form: {time_difference}")
+        # Convert times to timedelta
+        toronto_timedelta = timedelta(hours=toronto_time.hour, minutes=toronto_time.minute, seconds=toronto_time.second)
+        custom_timedelta = timedelta(hours=custom_time.hour, minutes=custom_time.minute, seconds=custom_time.second)
 
-        # Print the time difference in seconds for debugging
-        time_diff_in_seconds = time_difference.total_seconds()
-        print(f"Time Difference in seconds: {time_diff_in_seconds}")
+        # Calculate time difference
+        time_difference_seconds = (custom_timedelta.total_seconds() - toronto_timedelta.total_seconds())
 
-        # Convert the difference to hours and minutes
-        hours = int(time_diff_in_seconds // 3600)
-        minutes = int((time_diff_in_seconds % 3600) // 60)
+        # Adjust to keep within -12 to +12 hour range
+        if time_difference_seconds < -12 * 3600:
+            time_difference_seconds += 24 * 3600
+        elif time_difference_seconds > 12 * 3600:
+            time_difference_seconds -= 24 * 3600
+
+        # Convert seconds to hours and minutes
+        hours = int(time_difference_seconds // 3600)
+        minutes = int((time_difference_seconds % 3600) // 60)
+
         print(f"Calculated Time Difference: {hours} hours {minutes} minutes")
 
-        # Store the result in the 'custom_time_difference' field
+        # Store the result
         doc.custom_time_difference = f"{hours} hours {minutes} minutes"
         doc.save()
         print(f"Saved time difference for {doc.name}: {doc.custom_time_difference}")
 
     finally:
-        # Reset the flag after the method finishes
         doc.__is_calculating_time_difference = False
         print(f"Finished calculating time difference for {doc.name}")
