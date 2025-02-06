@@ -242,9 +242,6 @@ app_license = "mit"
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
 
-# doctype_js = {
-#     "Sales Order": "irfm_custom/public/js/sales_order.js"
-# }
 
 doc_events = {
     "Sales Order": {
@@ -271,6 +268,15 @@ doc_events = {
      "Purchase Receipt": {
         "on_submit": "irfm_custom.irfm.override.purchase_receipt.create_purchase_invoice_from_grn"
     },
+    "Customer":
+    { 
+        "before_save":["irfm_custom.irfm.override.customer.check_box"
+                    #   "irfm_custom.irfm.override.customer.calculate_time_difference" ]
+        ],
+    
+     "on_update":["irfm_custom.irfm.override.customer.calculate_time_difference_in_custom_timezone"
+     ]
+    }
 }
 
 
@@ -281,6 +287,8 @@ override_doctype_class = {
 }
 
 
+
 override_doctype_dashboards = {
     "Delivery Note": "irfm_custom.irfm.override.delivery_note_dashboard.get_dashboard_data",
 }
+
