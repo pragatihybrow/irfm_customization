@@ -293,3 +293,6 @@ override_doctype_dashboards = {
     "Delivery Note": "irfm_custom.irfm.override.delivery_note_dashboard.get_dashboard_data",
 }
 
+doctype_list_js = {
+    "Sales Order": "public/js/sales_order_listview.js"
+}
