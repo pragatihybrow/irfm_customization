@@ -6,18 +6,19 @@ from datetime import datetime, timedelta
 def validate_sales_order(doc, method):
     customer = doc.customer
     today = datetime.today().date()  # Convert to date
-    overdue_threshold = today - timedelta(days=7)  # Ensure this is a date object
+    overdue_threshold = today - timedelta(days=2)  # Ensure this is a date object
 
-    # Query for all unpaid sales invoices for this customer
+    # Query for all unpaid sales invoices for this customer that are past due
     sales_invoices = frappe.get_all('Sales Invoice', 
                                     filters={'customer': customer, 'docstatus': 1},  # docstatus = 1 means Open/Submitted
-                                    fields=['name', 'due_date'])  # Fetch due_date from Sales Invoice directly
+                                    fields=['name', 'due_date', 'outstanding_amount'])  # Fetch due_date and outstanding_amount
     
     for invoice in sales_invoices:
         due_date = invoice.get('due_date')  # Get due_date directly from Sales Invoice
+        outstanding_amount = invoice.get('outstanding_amount')  # Get outstanding_amount
         
-        # Ensure both are of the same type (date)
-        if due_date and due_date < overdue_threshold:
+        # Check if the invoice is overdue (due date has passed) and still has an outstanding amount
+        if due_date and outstanding_amount > 0 and due_date < overdue_threshold:
             frappe.throw(_("Cannot create a new sales order as the customer has overdue payments."))
 
 
