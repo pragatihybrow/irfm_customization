@@ -247,7 +247,8 @@ doc_events = {
     "Sales Order": {
         "validate": [
             "irfm_custom.irfm.override.sales_order.update_custom_stock",
-            "irfm_custom.irfm.override.sales_order.update_custom_states"
+            "irfm_custom.irfm.override.sales_order.update_custom_states",
+            "irfm_custom.irfm.override.sales_order.validate_sales_order"
         ],
         "on_submit": [
             "irfm_custom.irfm.override.sales_order.create_pick_list",
