@@ -273,9 +273,8 @@ doc_events = {
     },
     "Customer":
     { 
-        "before_save":["irfm_custom.irfm.override.customer.check_box"
-                    #   "irfm_custom.irfm.override.customer.calculate_time_difference" ]
-        ],
+        "before_save":["irfm_custom.irfm.override.customer.check_box"],
+                    #   "irfm_custom.irfm.override.customer.calculate_custom_deadline_time" ],
     
      "on_update":["irfm_custom.irfm.override.customer.calculate_time_difference_in_custom_timezone"
      ]
