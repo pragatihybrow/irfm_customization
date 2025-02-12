@@ -29,6 +29,7 @@ def update_custom_stock(doc, method):
             item.custom_stock = "Available"
         else:
             item.custom_stock = "Unavailable"
+
 @frappe.whitelist()
 def create_pick_list(doc, method):
     pick_list = frappe.new_doc("Pick List")
@@ -40,9 +41,13 @@ def create_pick_list(doc, method):
     pick_list.custom_sales_order = doc.name
 
     for item in doc.items:
-        # Explicit check for custom_total_pack
-        if item.custom_total_pack:
+        if item.custom_total_pack:  # Ensure this condition is correctly indented
             remaining_qty = item.qty  # Start with the total quantity
+            
+            # Fetch the first barcode from the Item doctype
+            item_doc = frappe.get_doc("Item", item.item_code)  # Get the Item document
+            first_barcode = item_doc.barcodes[0].barcode if item_doc.barcodes else None  # Get first barcode
+            
             for i in range(int(item.custom_total_pack)):  # Iterate for each pack
                 # Assign qty to the current row
                 current_pack_qty = min(item.custom_pack_of, remaining_qty)
@@ -53,12 +58,12 @@ def create_pick_list(doc, method):
                     "warehouse": item.warehouse,
                     "stock_qty": current_pack_qty,  # Adjust stock_qty
                     "picked_qty": 0,  # Default to 0 for picked_qty
-                    "sales_order": doc.name
+                    "sales_order": doc.name,
+                    "custom_item_barcode": first_barcode,  # Use first barcode
                 })
                 remaining_qty -= current_pack_qty  # Reduce remaining quantity
 
     pick_list.save(ignore_permissions=True)
-
 
 
 @frappe.whitelist()
