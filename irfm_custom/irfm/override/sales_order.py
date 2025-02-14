@@ -183,7 +183,6 @@ def validate_positive(value, fieldname):
 
 def validate_sales_order_item(doc, method):
     for item in doc.items:
-        # Validate custom_pack_of is an integer
         if not isinstance(item.custom_pack_of, int):
             frappe.throw(f"No Of Packs must be an integer.")
 
