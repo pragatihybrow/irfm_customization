@@ -185,11 +185,11 @@ def validate_sales_order_item(doc, method):
     for item in doc.items:
         # Validate custom_pack_of is an integer
         if not isinstance(item.custom_pack_of, int):
-            frappe.throw(f"Custom Pack Of must be an integer.")
+            frappe.throw(f"No Of Packs must be an integer.")
 
         # Validate custom_total_pack is an integer and greater than or equal to 1
         if not (item.custom_total_pack.is_integer() and item.custom_total_pack >= 1):
-            frappe.throw("Custom Total Pack must be an integer greater than or equal to 1.")
+            frappe.throw("Number Of Packs must be an integer greater than or equal to 1.")
 
         # Calculate qty
         item.qty = item.custom_total_pack * item.custom_pack_of
