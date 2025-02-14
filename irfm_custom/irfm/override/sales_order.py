@@ -173,4 +173,23 @@ def on_submit_send_email_for_pending_approval(doc, method):
                     now=True
                 )
 
-       
+def validate_integer(value, fieldname):
+    if not isinstance(value, int):
+        frappe.throw(f"{fieldname} must be an integer.")
+
+def validate_positive(value, fieldname):
+    if value is None or value < 1:
+        frappe.throw(f"{fieldname} must be greater than or equal to 1.")
+
+def validate_sales_order_item(doc, method):
+    for item in doc.items:
+        # Validate custom_pack_of is an integer
+        if not isinstance(item.custom_pack_of, int):
+            frappe.throw(f"Custom Pack Of must be an integer.")
+
+        # Validate custom_total_pack is an integer and greater than or equal to 1
+        if not (item.custom_total_pack.is_integer() and item.custom_total_pack >= 1):
+            frappe.throw("Custom Total Pack must be an integer greater than or equal to 1.")
+
+        # Calculate qty
+        item.qty = item.custom_total_pack * item.custom_pack_of
