@@ -305,4 +305,4 @@ doctype_list_js = {
     "Sales Order": "public/js/sales_order_listview.js"
 }
 
-doctype_js = {"Purchase Order" : "public/js/purchase_order.js"}
+# doctype_js = {"Purchase Order" : "public/js/purchase_order.js"}

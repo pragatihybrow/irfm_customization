@@ -3,9 +3,72 @@ from frappe.utils import flt
 
 
 
+# @frappe.whitelist()
+# def create_sales_order(doc, method):
+#     """Create a Sales Order when a Purchase Order is submitted"""
+
+#     # Fetch the represents_company field from Supplier
+#     represents_company = frappe.get_value("Supplier", doc.supplier, "represents_company")
+
+#     if not represents_company:
+#         frappe.throw(f"Supplier {doc.supplier} does not have a represents_company set.")
+
+#     # Get the default Sales Taxes and Charges Template for the represents_company
+#     taxes_template = frappe.get_value("Sales Taxes and Charges Template", 
+#                                       {"company": represents_company}, "name")
+
+#     # Create new Sales Order
+#     sales_order = frappe.get_doc({
+#         "doctype": "Sales Order",
+#         "customer": doc.custom_customers,  # Update this dynamically if needed
+#         "company": represents_company,  # Use represents_company instead of supplier
+#         "transaction_date": doc.transaction_date,
+#         "delivery_date": doc.transaction_date,
+#         "currency": doc.currency,
+#         "taxes_and_charges": taxes_template,  # Assign the tax template
+#         "items": [],
+#         "taxes": []  # Add taxes dynamically
+#     })
+
+#     # Map Purchase Order items to Sales Order items
+#     for item in doc.items:
+#         sales_order.append("items", {
+#             "item_code": item.item_code,
+#             "item_name": item.item_name,
+#             "description": item.description,
+#             "qty": item.qty,
+#             "uom": item.uom,
+#             "rate": item.rate,
+#             "amount": item.amount,
+#             "warehouse": item.custom_supplier_warehouse,
+#             "purchase_order":doc.name
+
+            
+#         })
+
+#     # If a tax template is found, fetch and apply the taxes
+#     if taxes_template:
+#         tax_details = frappe.get_all("Sales Taxes and Charges", 
+#                                      filters={"parent": taxes_template}, 
+#                                      fields=["charge_type", "account_head", "rate", "description"])
+
+#         for tax in tax_details:
+#             sales_order.append("taxes", {
+#                 "charge_type": tax.charge_type,
+#                 "account_head": tax.account_head,
+#                 "rate": tax.rate,
+#                 "description": tax.description
+#             })
+
+#     # Save and submit the Sales Order
+#     sales_order.insert()
+#     sales_order.submit()
+
+#     frappe.msgprint(f"Sales Order {sales_order.name} created successfully for company {represents_company}!", alert=True)
+    
 @frappe.whitelist()
 def create_sales_order(doc, method):
-    """Create a Sales Order when a Purchase Order is submitted"""
+    """Create a Sales Order when a Purchase Order is submitted, only if stock is available"""
 
     # Fetch the represents_company field from Supplier
     represents_company = frappe.get_value("Supplier", doc.supplier, "represents_company")
@@ -20,18 +83,25 @@ def create_sales_order(doc, method):
     # Create new Sales Order
     sales_order = frappe.get_doc({
         "doctype": "Sales Order",
-        "customer": doc.custom_customers,  # Update this dynamically if needed
-        "company": represents_company,  # Use represents_company instead of supplier
+        "customer": doc.custom_customers,  
+        "company": represents_company,
         "transaction_date": doc.transaction_date,
         "delivery_date": doc.transaction_date,
         "currency": doc.currency,
-        "taxes_and_charges": taxes_template,  # Assign the tax template
+        "taxes_and_charges": taxes_template,
         "items": [],
-        "taxes": []  # Add taxes dynamically
+        "taxes": []
     })
 
     # Map Purchase Order items to Sales Order items
     for item in doc.items:
+        stock_qty = frappe.get_value("Bin", 
+                                     {"warehouse": item.custom_supplier_warehouse, "item_code": item.item_code}, 
+                                     "actual_qty") or 0
+        
+        if stock_qty < item.qty:
+            frappe.throw(f"Insufficient stock for item {item.item_code} in warehouse {item.custom_supplier_warehouse}. Required: {item.qty}, Available: {stock_qty}")
+
         sales_order.append("items", {
             "item_code": item.item_code,
             "item_name": item.item_name,
@@ -41,9 +111,7 @@ def create_sales_order(doc, method):
             "rate": item.rate,
             "amount": item.amount,
             "warehouse": item.custom_supplier_warehouse,
-            "purchase_order":doc.name
-
-            
+            "purchase_order": doc.name
         })
 
     # If a tax template is found, fetch and apply the taxes
@@ -65,7 +133,6 @@ def create_sales_order(doc, method):
     sales_order.submit()
 
     frappe.msgprint(f"Sales Order {sales_order.name} created successfully for company {represents_company}!", alert=True)
-    
 
 
 
