@@ -1,11 +1,9 @@
 import frappe
 from frappe.utils import flt
 
-
-
 # @frappe.whitelist()
 # def create_sales_order(doc, method):
-#     """Create a Sales Order when a Purchase Order is submitted"""
+#     """Create a Sales Order when a Purchase Order is submitted, only if stock is available"""
 
 #     # Fetch the represents_company field from Supplier
 #     represents_company = frappe.get_value("Supplier", doc.supplier, "represents_company")
@@ -20,18 +18,25 @@ from frappe.utils import flt
 #     # Create new Sales Order
 #     sales_order = frappe.get_doc({
 #         "doctype": "Sales Order",
-#         "customer": doc.custom_customers,  # Update this dynamically if needed
-#         "company": represents_company,  # Use represents_company instead of supplier
+#         "customer": doc.custom_customers,  
+#         "company": represents_company,
 #         "transaction_date": doc.transaction_date,
 #         "delivery_date": doc.transaction_date,
 #         "currency": doc.currency,
-#         "taxes_and_charges": taxes_template,  # Assign the tax template
+#         "taxes_and_charges": taxes_template,
 #         "items": [],
-#         "taxes": []  # Add taxes dynamically
+#         "taxes": []
 #     })
 
 #     # Map Purchase Order items to Sales Order items
 #     for item in doc.items:
+#         stock_qty = frappe.get_value("Bin", 
+#                                      {"warehouse": item.custom_supplier_warehouse, "item_code": item.item_code}, 
+#                                      "actual_qty") or 0
+        
+#         if stock_qty < item.qty:
+#             frappe.throw(f"Insufficient stock for item {item.item_code} in warehouse {item.custom_supplier_warehouse}. Required: {item.qty}, Available: {stock_qty}")
+
 #         sales_order.append("items", {
 #             "item_code": item.item_code,
 #             "item_name": item.item_name,
@@ -41,9 +46,7 @@ from frappe.utils import flt
 #             "rate": item.rate,
 #             "amount": item.amount,
 #             "warehouse": item.custom_supplier_warehouse,
-#             "purchase_order":doc.name
-
-            
+#             "purchase_order": doc.name
 #         })
 
 #     # If a tax template is found, fetch and apply the taxes
@@ -65,10 +68,38 @@ from frappe.utils import flt
 #     sales_order.submit()
 
 #     frappe.msgprint(f"Sales Order {sales_order.name} created successfully for company {represents_company}!", alert=True)
-    
+
+
+
+# @frappe.whitelist()
+# def update_custom_states(doc, method):
+#     available_count = 0
+#     total_items = len(doc.items)
+
+#     # Iterate through the items in the child table
+#     for item in doc.items:
+#         if item.custom_stock == "Available":
+#             available_count += 1
+
+#     # Update custom_states based on the availability
+#     if available_count == total_items:
+#         # All items are available
+#         doc.custom_states_ = "Approved"
+#     elif available_count > 0:
+#         # Some items are available
+#         doc.custom_states_ = "Pending For Approval"
+#     else:
+#         # No items are available
+#         doc.custom_states_ = "Stock Unavailable"
+
+
 @frappe.whitelist()
 def create_sales_order(doc, method):
-    """Create a Sales Order when a Purchase Order is submitted, only if stock is available"""
+    """Create a Sales Order when a Purchase Order is submitted, only if stock is fully available"""
+
+    # Ensure SO is created only if PO is approved
+    if doc.custom_states_ != "Approved":
+        frappe.throw("Purchase Order is not fully approved. Cannot create Sales Order.")
 
     # Fetch the represents_company field from Supplier
     represents_company = frappe.get_value("Supplier", doc.supplier, "represents_company")
@@ -95,13 +126,6 @@ def create_sales_order(doc, method):
 
     # Map Purchase Order items to Sales Order items
     for item in doc.items:
-        stock_qty = frappe.get_value("Bin", 
-                                     {"warehouse": item.custom_supplier_warehouse, "item_code": item.item_code}, 
-                                     "actual_qty") or 0
-        
-        if stock_qty < item.qty:
-            frappe.throw(f"Insufficient stock for item {item.item_code} in warehouse {item.custom_supplier_warehouse}. Required: {item.qty}, Available: {stock_qty}")
-
         sales_order.append("items", {
             "item_code": item.item_code,
             "item_name": item.item_name,
@@ -136,43 +160,30 @@ def create_sales_order(doc, method):
 
 
 
-@frappe.whitelist()
-def get_available_qty(item_code, warehouse):
-    """Fetch the latest available balance quantity from Stock Ledger Entry (SLE)."""
-    balance_qty = frappe.db.sql(
-        """
-        SELECT qty_after_transaction FROM `tabStock Ledger Entry`
-        WHERE item_code=%s AND warehouse=%s AND is_cancelled=0
-        ORDER BY posting_date DESC, posting_time DESC, creation DESC
-        LIMIT 1
-        """,
-        (item_code, warehouse),
-    )
-
-    return flt(balance_qty[0][0]) if balance_qty else 0.0
 
 
-
-@frappe.whitelist()
 def update_custom_states(doc, method):
-    available_count = 0
-    total_items = len(doc.items)
+    """Update custom_states_ based on stock availability when saving the Purchase Order"""
 
-    # Iterate through the items in the child table
+    # Track stock availability
+    all_items_available = True  # Assume all items are available
+    some_items_available = False  # Track if at least one item is available
+
+    # Check stock for all items in the PO
     for item in doc.items:
-        if item.custom_stock == "Available":
-            available_count += 1
+        stock_qty = frappe.get_value("Bin", 
+                                     {"warehouse": item.custom_supplier_warehouse, "item_code": item.item_code}, 
+                                     "actual_qty") or 0
 
-    # Update custom_states based on the availability
-    if available_count == total_items:
-        # All items are available
+        if stock_qty >= item.qty:
+            some_items_available = True
+        else:
+            all_items_available = False  # If any item is out of stock, mark it
+
+    # Set custom state before saving
+    if all_items_available:
         doc.custom_states_ = "Approved"
-    elif available_count > 0:
-        # Some items are available
+    elif some_items_available:
         doc.custom_states_ = "Pending For Approval"
     else:
-        # No items are available
-        doc.custom_states_ = "Stock Unavailable"
-
-
-
+        doc.custom_states_ = "Pending For Approval"  # Default to Pending if none are available
