@@ -43,7 +43,7 @@ app_license = "mit"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+doctype_js = {"doctype" : "public/js/doctype.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -255,8 +255,8 @@ doc_events = {
             "irfm_custom.irfm.override.sales_order.on_submit_send_email",
             "irfm_custom.irfm.override.sales_order.on_submit_send_email_for_pending_approval"
         ],
-        "before_save":
-        [ "irfm_custom.irfm.override.sales_order.validate_sales_order_item"]
+        # "before_save":
+        # [ "irfm_custom.irfm.override.sales_order.validate_sales_order_item"]
 
     },
     "Pick List": {
@@ -281,6 +281,10 @@ doc_events = {
     
      "on_update":["irfm_custom.irfm.override.customer.calculate_time_difference_in_custom_timezone"
      ]
+    },
+    "Purchase Order":{
+       "validate":[ "irfm_custom.irfm.override.purchase_order.update_custom_states"],
+       "on_submit":[ "irfm_custom.irfm.override.purchase_order.create_sales_order"]
     }
 }
 
@@ -300,3 +304,5 @@ override_doctype_dashboards = {
 doctype_list_js = {
     "Sales Order": "public/js/sales_order_listview.js"
 }
+
+doctype_js = {"Purchase Order" : "public/js/purchase_order.js"}
