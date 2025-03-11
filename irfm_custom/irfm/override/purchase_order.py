@@ -162,28 +162,69 @@ def create_sales_order(doc, method):
 
 
 
+# def update_custom_states(doc, method):
+#     """Update custom_states_ based on stock availability when saving the Purchase Order"""
+
+#     # Track stock availability
+#     all_items_available = True  # Assume all items are available
+#     some_items_available = False  # Track if at least one item is available
+
+#     # Check stock for all items in the PO
+#     for item in doc.items:
+#         stock_qty = frappe.get_value("Bin", 
+#                                      {"warehouse": item.custom_supplier_warehouse, "item_code": item.item_code}, 
+#                                      "actual_qty") or 0
+
+#         if stock_qty >= item.qty:
+#             some_items_available = True
+#         else:
+#             all_items_available = False  # If any item is out of stock, mark it
+
+#     # Set custom state before saving
+#     if all_items_available:
+#         doc.custom_states_ = "Approved"
+#     elif some_items_available:
+#         doc.custom_states_ = "Pending For Approval"
+#     else:
+#         doc.custom_states_ = "Pending For Approval"  # Default to Pending if none are available
+
+
+
+@frappe.whitelist()
 def update_custom_states(doc, method):
-    """Update custom_states_ based on stock availability when saving the Purchase Order"""
+    """Update custom_states_ and stock availability fields when saving the Purchase Order"""
 
     # Track stock availability
     all_items_available = True  # Assume all items are available
     some_items_available = False  # Track if at least one item is available
+    available_count = 0  # Count of available items
+    total_items = len(doc.items)
 
     # Check stock for all items in the PO
     for item in doc.items:
-        stock_qty = frappe.get_value("Bin", 
-                                     {"warehouse": item.custom_supplier_warehouse, "item_code": item.item_code}, 
-                                     "actual_qty") or 0
+        stock_qty = frappe.get_value(
+            "Bin", 
+            {"warehouse": item.custom_supplier_warehouse, "item_code": item.item_code}, 
+            "actual_qty"
+        ) or 0
 
+        # Set custom_available_qty
+        item.custom_available_qty = stock_qty
+
+        # Set custom_stock field
         if stock_qty >= item.qty:
+            item.custom_stock = "Available"
             some_items_available = True
+            available_count += 1  # Count available items
         else:
+            item.custom_stock = "Unavailable"
             all_items_available = False  # If any item is out of stock, mark it
 
     # Set custom state before saving
-    if all_items_available:
-        doc.custom_states_ = "Approved"
-    elif some_items_available:
-        doc.custom_states_ = "Pending For Approval"
-    else:
-        doc.custom_states_ = "Pending For Approval"  # Default to Pending if none are available
+    if total_items > 0:
+        if available_count == total_items:
+            doc.custom_states_ = "Approved"
+        elif available_count > 0:
+            doc.custom_states_ = "Pending For Approval"
+        else:
+            doc.custom_states_ = "Pending For Approval"  # No items are available
