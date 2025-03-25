@@ -42,6 +42,68 @@ import frappe
 from frappe.model.document import Document
 from frappe import _
 
+# @frappe.whitelist()
+# def create_delivery_note_from_picklist(doc, method):
+#     """Create a Delivery Note when a Pick List is submitted."""
+
+#     # Create a new Delivery Note
+#     delivery_note = frappe.new_doc("Delivery Note")
+#     delivery_note.pick_list = doc.name  # Link Pick List
+#     delivery_note.customer = doc.customer
+#     delivery_note.set_warehouse = doc.parent_warehouse
+#     delivery_note.company = doc.company
+#     delivery_note.delivery_date = frappe.utils.today()
+
+#     # Get the first Sales Order to copy taxes
+#     if doc.locations:
+#         first_item = doc.locations[0]
+#         sales_order_doc = frappe.get_doc("Sales Order", first_item.sales_order)
+#         delivery_note.taxes_and_charges = sales_order_doc.taxes_and_charges
+
+#     # Store items and link them correctly
+#     for item in doc.locations:
+#         sales_order_doc = frappe.get_doc("Sales Order", item.sales_order)
+
+#         # Find Sales Order Item ID (so_detail)
+#         sales_order_item = None
+#         for soi in sales_order_doc.items:
+#             if soi.item_code == item.item_code:
+#                 sales_order_item = soi.name  # Sales Order Item ID
+#                 break  # Stop once found
+
+#         if not sales_order_item:
+#             frappe.throw(f"Sales Order Item not found for Item {item.item_code} in Sales Order {item.sales_order}")
+
+#         delivery_note.append("items", {
+#             "item_code": item.item_code,
+#             "qty": item.picked_qty,
+#             "uom": item.stock_uom,
+#             "warehouse": item.warehouse,
+#             "custom_box_barcode": item.custom_barcode,
+#             "custom_barcode_image": item.custom_barcode_image,
+#             "against_sales_order": item.sales_order,  # Ensure this is set correctly
+#             "so_detail": sales_order_item  # Correctly linked to Sales Order Item ID
+#         })
+
+#     # Copy Taxes from Sales Order
+#     for tax_entry in sales_order_doc.get("taxes", []):
+#         delivery_note.append("taxes", {
+#             "charge_type": tax_entry.charge_type,
+#             "account_head": tax_entry.account_head,
+#             "description": tax_entry.description,
+#             "rate": tax_entry.rate,
+#             "tax_amount": tax_entry.tax_amount
+#         })
+
+#     # Save and Submit Delivery Note
+#     delivery_note.insert(ignore_permissions=True)
+#     delivery_note.save(ignore_permissions=True)
+
+#     frappe.msgprint(_("Delivery Note {0} created successfully").format(delivery_note.name))
+
+import frappe
+from frappe import _
+
 @frappe.whitelist()
 def create_delivery_note_from_picklist(doc, method):
     """Create a Delivery Note when a Pick List is submitted."""
@@ -66,9 +128,20 @@ def create_delivery_note_from_picklist(doc, method):
 
         # Find Sales Order Item ID (so_detail)
         sales_order_item = None
+        sales_order_rate = 0
+        sales_order_amount = 0
+        sales_order_net_rate = 0
+        sales_order_net_amount = 0
+        sales_order_discount = 0
+
         for soi in sales_order_doc.items:
             if soi.item_code == item.item_code:
                 sales_order_item = soi.name  # Sales Order Item ID
+                sales_order_rate = soi.rate  # Get item rate
+                sales_order_amount = soi.amount  # Get total amount
+                sales_order_net_rate = soi.net_rate  # Net rate
+                sales_order_net_amount = soi.net_amount  # Net amount
+                sales_order_discount = soi.discount_percentage  # Discount percentage
                 break  # Stop once found
 
         if not sales_order_item:
@@ -82,7 +155,12 @@ def create_delivery_note_from_picklist(doc, method):
             "custom_box_barcode": item.custom_barcode,
             "custom_barcode_image": item.custom_barcode_image,
             "against_sales_order": item.sales_order,  # Ensure this is set correctly
-            "so_detail": sales_order_item  # Correctly linked to Sales Order Item ID
+            "so_detail": sales_order_item,  # Correctly linked to Sales Order Item ID
+            "rate": sales_order_rate,  # Copy rate
+            "amount": sales_order_amount,  # Copy amount
+            "net_rate": sales_order_net_rate,  # Copy net rate
+            "net_amount": sales_order_net_amount,  # Copy net amount
+            "discount_percentage": sales_order_discount  # Copy discount percentage
         })
 
     # Copy Taxes from Sales Order
