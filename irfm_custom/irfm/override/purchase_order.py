@@ -143,62 +143,16 @@ def create_sales_order(doc, method):
 
     frappe.msgprint(f"Sales Order {sales_order.name} created successfully for company {represents_company}!", alert=True)
 
-
-# @frappe.whitelist()
-# def update_custom_states(doc, method):
-#     """Update custom_states_ and stock availability fields when saving the Purchase Order"""
-
-#     # Track stock availability
-#     all_items_available = True  # Assume all items are available
-#     some_items_available = False  # Track if at least one item is available
-#     available_count = 0  # Count of available items
-#     total_items = len(doc.items)
-
-#     # Check stock for all items in the PO
-#     for item in doc.items:
-#         stock_qty = frappe.get_value(
-#             "Bin", 
-#             {"warehouse": item.custom_supplier_warehouse, "item_code": item.item_code}, 
-#             "actual_qty"
-#         ) or 0
-
-#         # Set custom_available_qty
-#         item.custom_available_qty = stock_qty
-
-#         # Set custom_stock field
-#         if stock_qty >= item.qty:
-#             item.custom_stock = "Available"
-#             some_items_available = True
-#             available_count += 1  # Count available items
-#         else:
-#             item.custom_stock = "Unavailable"
-#             all_items_available = False  # If any item is out of stock, mark it
-
-#     # Set custom state before saving
-#     if total_items > 0:
-#         if available_count == total_items:
-#             doc.custom_states_ = "Approved"
-#         elif available_count > 0:
-#             doc.custom_states_ = "Pending For Approval"
-#         else:
-#             doc.custom_states_ = "Pending For Approval"  # No items are available
-
-
+    
 @frappe.whitelist()
 def update_custom_states(doc, method):
     """Update custom_states_ and stock availability fields when saving the Purchase Order"""
 
-    # Track stock availability
-    all_items_available = True  # Assume all items are available
-    some_items_available = False  # Track if at least one item is available
-    available_count = 0  # Count of available items
-    total_items = len(doc.items)
-
-    # Fetch the supplier's company
-    supplier_company = frappe.get_value("Supplier", doc.supplier, "company")
+    # Fetch the supplier's company using the correct field name
+    supplier_company = frappe.get_value("Supplier", doc.supplier, "custom_company")
 
     if not supplier_company:
-        frappe.throw("Supplier company not found.")
+        frappe.throw(f"Supplier {doc.supplier} does not have a linked company. Please check the Supplier record.")
 
     # Fetch all warehouses linked to this company
     company_warehouses = frappe.get_all(
@@ -209,6 +163,12 @@ def update_custom_states(doc, method):
 
     if not company_warehouses:
         frappe.throw(f"No warehouses found for company {supplier_company}")
+
+    # Track stock availability
+    all_items_available = True  # Assume all items are available
+    some_items_available = False  # Track if at least one item is available
+    available_count = 0  # Count of available items
+    total_items = len(doc.items)
 
     # Check stock for all items in the PO
     for item in doc.items:
@@ -221,7 +181,7 @@ def update_custom_states(doc, method):
             {"warehouses": company_warehouses, "item_code": item.item_code}
         )[0][0] or 0
 
-        # Set custom_available_qty
+        # Set custom_available_qty to show total stock across all warehouses
         item.custom_available_qty = stock_qty
 
         # Set custom_stock field
@@ -241,8 +201,6 @@ def update_custom_states(doc, method):
             doc.custom_states_ = "Pending For Approval"
         else:
             doc.custom_states_ = "Pending For Approval"  # No items are available
-
-
 
 def get_next_available_schedule_day(start_date, selected_days):
     """
