@@ -94,6 +94,7 @@ def create_sales_order(doc, method):
         "doctype": "Sales Order",
         "customer": doc.custom_customers,  
         "company": represents_company,
+        "po_no" : doc.name,
         "transaction_date": doc.transaction_date,
         "delivery_date": doc.schedule_date,
         "currency": doc.currency,
