@@ -99,6 +99,7 @@ def create_sales_order(doc, method):
         "delivery_date": doc.schedule_date,
         "currency": doc.currency,
         "taxes_and_charges": taxes_template,
+        "po_no" : doc.name,
         "set_warehouse": doc.custom_warehouse,  # ✅ Ensure set_warehouse is set before adding items
         "items": [],
         "taxes": []
