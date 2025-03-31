@@ -3,7 +3,6 @@ import json
 from frappe.utils import flt
 from frappe.utils import today, add_days, getdate
 
-
 # @frappe.whitelist()
 # def create_sales_order(doc, method):
 #     """Create a Sales Order when a Purchase Order is submitted, only if stock is fully available"""
@@ -27,25 +26,32 @@ from frappe.utils import today, add_days, getdate
 #         "doctype": "Sales Order",
 #         "customer": doc.custom_customers,  
 #         "company": represents_company,
+#         "po_no" : doc.name,
 #         "transaction_date": doc.transaction_date,
 #         "delivery_date": doc.schedule_date,
 #         "currency": doc.currency,
 #         "taxes_and_charges": taxes_template,
+#         "po_no" : doc.name,
+#         "set_warehouse": doc.custom_warehouse,  # ✅ Ensure set_warehouse is set before adding items
 #         "items": [],
 #         "taxes": []
 #     })
+
+#     # Ensure `set_warehouse` applies correctly
+#     sales_order.set_warehouse = doc.custom_warehouse  # ✅ Force update set_warehouse
 
 #     # Map Purchase Order items to Sales Order items
 #     for item in doc.items:
 #         sales_order.append("items", {
 #             "item_code": item.item_code,
 #             "item_name": item.item_name,
+#             "custom_item_barcode" : item.custom_item_barcode,
 #             "description": item.description,
 #             "qty": item.qty,
 #             "uom": item.uom,
 #             "rate": item.rate,
 #             "amount": item.amount,
-#             "warehouse": item.custom_supplier_warehouse,
+#             "warehouse": item.custom_supplier_warehouse,  # This is for individual items
 #             "purchase_order": doc.name
 #         })
 
@@ -63,13 +69,13 @@ from frappe.utils import today, add_days, getdate
 #                 "description": tax.description
 #             })
 
-#     # Save and submit the Sales Order
+#     # ✅ Explicitly Save Before Submit to Ensure `set_warehouse` Applies
 #     sales_order.insert()
+#     sales_order.db_set("set_warehouse", doc.custom_warehouse)  # ✅ Force update
+#     sales_order.save()
 #     sales_order.submit()
 
 #     frappe.msgprint(f"Sales Order {sales_order.name} created successfully for company {represents_company}!", alert=True)
-
-
 
 @frappe.whitelist()
 def create_sales_order(doc, method):
@@ -79,8 +85,18 @@ def create_sales_order(doc, method):
     if doc.custom_states_ != "Approved":
         frappe.throw("Purchase Order is not fully approved. Cannot create Sales Order.")
 
-    # Fetch the represents_company field from Supplier
-    represents_company = frappe.get_value("Supplier", doc.supplier, "represents_company")
+    # Fetch the represents_company and is_internal_supplier field from Supplier
+    supplier_details = frappe.get_value("Supplier", doc.supplier, ["represents_company", "is_internal_supplier"], as_dict=True)
+
+    if not supplier_details:
+        frappe.throw(f"Supplier {doc.supplier} not found.")
+
+    represents_company = supplier_details.get("represents_company")
+    is_internal_supplier = supplier_details.get("is_internal_supplier")
+
+    # If is_internal_supplier is not checked, do not create the Sales Order
+    if not is_internal_supplier:
+        return  # Do nothing, let it follow the core functionality
 
     if not represents_company:
         frappe.throw(f"Supplier {doc.supplier} does not have a represents_company set.")
@@ -94,32 +110,31 @@ def create_sales_order(doc, method):
         "doctype": "Sales Order",
         "customer": doc.custom_customers,  
         "company": represents_company,
-        "po_no" : doc.name,
+        "po_no": doc.name,
         "transaction_date": doc.transaction_date,
         "delivery_date": doc.schedule_date,
         "currency": doc.currency,
         "taxes_and_charges": taxes_template,
-        "po_no" : doc.name,
-        "set_warehouse": doc.custom_warehouse,  # ✅ Ensure set_warehouse is set before adding items
+        "set_warehouse": doc.custom_warehouse,
         "items": [],
         "taxes": []
     })
 
     # Ensure `set_warehouse` applies correctly
-    sales_order.set_warehouse = doc.custom_warehouse  # ✅ Force update set_warehouse
+    sales_order.set_warehouse = doc.custom_warehouse
 
     # Map Purchase Order items to Sales Order items
     for item in doc.items:
         sales_order.append("items", {
             "item_code": item.item_code,
             "item_name": item.item_name,
-            "custom_item_barcode" : item.custom_item_barcode,
+            "custom_item_barcode": item.custom_item_barcode,
             "description": item.description,
             "qty": item.qty,
             "uom": item.uom,
             "rate": item.rate,
             "amount": item.amount,
-            "warehouse": item.custom_supplier_warehouse,  # This is for individual items
+            "warehouse": item.custom_supplier_warehouse,
             "purchase_order": doc.name
         })
 
@@ -137,13 +152,14 @@ def create_sales_order(doc, method):
                 "description": tax.description
             })
 
-    # ✅ Explicitly Save Before Submit to Ensure `set_warehouse` Applies
+    # Save and submit the Sales Order
     sales_order.insert()
-    sales_order.db_set("set_warehouse", doc.custom_warehouse)  # ✅ Force update
+    sales_order.db_set("set_warehouse", doc.custom_warehouse)
     sales_order.save()
     sales_order.submit()
 
     frappe.msgprint(f"Sales Order {sales_order.name} created successfully for company {represents_company}!", alert=True)
+
 
     
 @frappe.whitelist()
