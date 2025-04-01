@@ -96,7 +96,7 @@ def create_pick_list(doc, method):
                 "picked_qty": 0,  # Default to 0 for picked_qty
                 "sales_order": doc.name,
                 "custom_item_barcode": first_barcode,  # Use first barcode
-                "custom_pack_size" : item.custom_pack_of,
+                "custom_pack_size" : item.custom_pack_size,
                 "custom_uoms" : item.custom_bundle_sizeuom
             })
 
