@@ -57,6 +57,8 @@ def create_sales_invoice_from_delivery_note(doc, method):
             "dn_detail": item.name,  # Link to Delivery Note Item ID
             "sales_order": item.against_sales_order,  # Ensure Sales Order reference
             "so_detail": sales_order_item_id,  # Link to correct Sales Order Item ID
+			"custom_pack_size" :item.custom_pack_size,
+			"custom_uoms" : item.custom_uoms,
         })
 
 
