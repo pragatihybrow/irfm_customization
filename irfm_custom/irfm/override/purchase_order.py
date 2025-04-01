@@ -135,7 +135,9 @@ def create_sales_order(doc, method):
             "rate": item.rate,
             "amount": item.amount,
             "warehouse": item.custom_supplier_warehouse,
-            "purchase_order": doc.name
+            "purchase_order": doc.name,
+            "custom_bundle_sizeuom":item.custom_bundle_sizeuom,
+            "custom_pack_size" :item.custom_pack_size
         })
 
     # If a tax template is found, fetch and apply the taxes
@@ -344,3 +346,4 @@ def set_schedule_date(doc):
     next_schedule_day = get_next_available_schedule_day(min_schedule_date, selected_days)
 
     return next_schedule_day
+
