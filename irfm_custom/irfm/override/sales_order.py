@@ -30,8 +30,12 @@ def update_custom_stock(doc, method):
         else:
             item.custom_stock = "Unavailable"
 
+
 # @frappe.whitelist()
 # def create_pick_list(doc, method):
+#     """Create a Draft Pick List when a Sales Order is submitted, ensuring 1 row per quantity"""
+
+#     # Create a new Pick List document
 #     pick_list = frappe.new_doc("Pick List")
 #     pick_list.sales_order = doc.name
 #     pick_list.customer = doc.customer
@@ -40,37 +44,37 @@ def update_custom_stock(doc, method):
 #     pick_list.parent_warehouse = doc.set_warehouse
 #     pick_list.custom_sales_order = doc.name
 
+#     # Loop through each item in the Sales Order
 #     for item in doc.items:
-#         if item.custom_total_pack:  # Ensure this condition is correctly indented
-#             remaining_qty = item.qty  # Start with the total quantity
-            
-#             # Fetch the first barcode from the Item doctype
-#             item_doc = frappe.get_doc("Item", item.item_code)  # Get the Item document
-#             first_barcode = item_doc.barcodes[0].barcode if item_doc.barcodes else None  # Get first barcode
-            
-#             for i in range(int(item.custom_total_pack)):  # Iterate for each pack
-#                 # Assign qty to the current row
-#                 current_pack_qty = min(item.custom_pack_of, remaining_qty)
-#                 pick_list.append("locations", {
-#                     "item_code": item.item_code,
-#                     "qty": current_pack_qty,  # Set current pack qty
-#                     "stock_uom": item.stock_uom,
-#                     "warehouse": item.warehouse,
-#                     "stock_qty": current_pack_qty,  # Adjust stock_qty
-#                     "picked_qty": 0,  # Default to 0 for picked_qty
-#                     "sales_order": doc.name,
-#                     "custom_item_barcode": first_barcode,  # Use first barcode
-#                 })
-#                 remaining_qty -= current_pack_qty  # Reduce remaining quantity
+#         # Fetch the first barcode from the Item doctype (fetch only once per item)
+#         item_doc = frappe.get_doc("Item", item.item_code)
+#         first_barcode = item_doc.barcodes[0].barcode if item_doc.barcodes else None
 
+#         # Create a row for each quantity (1 row per qty = 1)
+#         for _ in range(int(item.qty)):
+#             pick_list.append("locations", {
+#                 "item_code": item.item_code,
+#                 "qty": 1,  # Each row has exactly 1 quantity
+#                 "stock_uom": item.stock_uom,
+#                 "warehouse": item.warehouse,
+#                 "stock_qty": 1,  # Adjust stock_qty to 1
+#                 "picked_qty": 0,  # Default to 0 for picked_qty
+#                 "sales_order": doc.name,
+#                 "custom_item_barcode": first_barcode,  # Use first barcode
+#                 "custom_pack_size" : item.custom_pack_size,
+#                 "custom_uoms" : item.custom_bundle_sizeuom
+#             })
+
+#     # Save the Pick List as Draft
 #     pick_list.save(ignore_permissions=True)
+
+#     frappe.msgprint(f"Draft Pick List {pick_list.name} created for Sales Order {doc.name}!", alert=True)
 
 
 @frappe.whitelist()
 def create_pick_list(doc, method):
-    """Create a Draft Pick List when a Sales Order is submitted, ensuring 1 row per quantity"""
+    """Create a Draft Pick List when a Sales Order is submitted, using custom_no_of_packs and custom_pack_size."""
 
-    # Create a new Pick List document
     pick_list = frappe.new_doc("Pick List")
     pick_list.sales_order = doc.name
     pick_list.customer = doc.customer
@@ -79,30 +83,31 @@ def create_pick_list(doc, method):
     pick_list.parent_warehouse = doc.set_warehouse
     pick_list.custom_sales_order = doc.name
 
-    # Loop through each item in the Sales Order
     for item in doc.items:
-        # Fetch the first barcode from the Item doctype (fetch only once per item)
+        # Fetch the first barcode from Item
         item_doc = frappe.get_doc("Item", item.item_code)
         first_barcode = item_doc.barcodes[0].barcode if item_doc.barcodes else None
 
-        # Create a row for each quantity (1 row per qty = 1)
-        for _ in range(int(item.qty)):
+        # Ensure custom fields are valid
+        no_of_packs = int(item.custom_no_of_packs or 0)
+        # pack_size = flt(item.custom_pack_size or 0)
+
+        # Create 1 row per pack (custom_no_of_packs), with qty = custom_pack_size
+        for _ in range(no_of_packs):
             pick_list.append("locations", {
                 "item_code": item.item_code,
-                "qty": 1,  # Each row has exactly 1 quantity
+                "qty": item.custom_pack_size,
                 "stock_uom": item.stock_uom,
                 "warehouse": item.warehouse,
-                "stock_qty": 1,  # Adjust stock_qty to 1
-                "picked_qty": 0,  # Default to 0 for picked_qty
+                "stock_qty": item.custom_pack_size,
+                "picked_qty": 0,
                 "sales_order": doc.name,
-                "custom_item_barcode": first_barcode,  # Use first barcode
-                "custom_pack_size" : item.custom_pack_size,
-                "custom_uoms" : item.custom_bundle_sizeuom
+                "custom_item_barcode": first_barcode,
+                "custom_pack_size": item.custom_pack_size,
+                "custom_no_of_packs": item.custom_no_of_packs
             })
 
-    # Save the Pick List as Draft
     pick_list.save(ignore_permissions=True)
-
     frappe.msgprint(f"Draft Pick List {pick_list.name} created for Sales Order {doc.name}!", alert=True)
 
 

@@ -161,8 +161,8 @@ def create_delivery_note_from_picklist(doc, method):
             "net_rate": sales_order_net_rate,  # Copy net rate
             "net_amount": sales_order_net_amount,  # Copy net amount
             "discount_percentage": sales_order_discount,  # Copy discount percentage
-            "custom_uoms" : item.custom_uoms,
-            "custom_pack_size" : item.custom_pack_size
+            "custom_pack_size" : item.custom_pack_size,
+            "custom_no_of_packs": item.custom_no_of_packs
         })
 
     # Copy Taxes from Sales Order

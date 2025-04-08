@@ -63,7 +63,8 @@ def create_sales_order(doc, method):
             "warehouse": item.custom_supplier_warehouse,
             "purchase_order": doc.name,
             "custom_bundle_sizeuom":item.custom_bundle_sizeuom,
-            "custom_pack_size" :item.custom_pack_size
+            "custom_pack_size" :item.custom_pack_size,
+            "custom_no_of_packs": item.custom_no_of_packs
         })
 
     # If a tax template is found, fetch and apply the taxes
@@ -87,123 +88,6 @@ def create_sales_order(doc, method):
     sales_order.submit()
 
     frappe.msgprint(f"Sales Order {sales_order.name} created successfully for company {represents_company}!", alert=True)
-
-
-    
-# @frappe.whitelist()
-# def update_custom_states(doc, method):
-#     """Update custom_states_ and stock availability fields when saving the Purchase Order"""
-
-#     # Fetch the supplier's company using the correct field name
-#     supplier_company = frappe.get_value("Supplier", doc.supplier, "custom_company")
-
-#     if not supplier_company:
-#         frappe.throw(f"Supplier {doc.supplier} does not have a linked company. Please check the Supplier record.")
-
-#     # Fetch all warehouses linked to this company
-#     company_warehouses = frappe.get_all(
-#         "Warehouse",
-#         filters={"company": supplier_company},
-#         pluck="name"
-#     )
-
-#     if not company_warehouses:
-#         frappe.throw(f"No warehouses found for company {supplier_company}")
-
-#     # Track stock availability
-#     all_items_available = True  # Assume all items are available
-#     some_items_available = False  # Track if at least one item is available
-#     available_count = 0  # Count of available items
-#     total_items = len(doc.items)
-
-#     # Check stock for all items in the PO
-#     for item in doc.items:
-#         # Sum stock from all warehouses belonging to the supplier's company
-#         stock_qty = frappe.db.sql(
-#             """
-#             SELECT SUM(actual_qty) FROM `tabBin`
-#             WHERE warehouse IN %(warehouses)s AND item_code = %(item_code)s
-#             """,
-#             {"warehouses": company_warehouses, "item_code": item.item_code}
-#         )[0][0] or 0
-
-#         # Set custom_available_qty to show total stock across all warehouses
-#         item.custom_available_qty = stock_qty
-
-#         # Set custom_stock field
-#         if stock_qty >= item.qty:
-#             item.custom_stock = "Available"
-#             some_items_available = True
-#             available_count += 1  # Count available items
-#         else:
-#             item.custom_stock = "Unavailable"
-#             all_items_available = False  # If any item is out of stock, mark it
-
-#     # Set custom state before saving
-#     if total_items > 0:
-#         if available_count == total_items:
-#             doc.custom_states_ = "Approved"
-#         elif available_count > 0:
-#             doc.custom_states_ = "Pending For Approval"
-#         else:
-#             doc.custom_states_ = "Pending For Approval"  # No items are available
-
-
-
-# @frappe.whitelist()
-# def update_custom_states(doc, method):
-#     supplier_company = frappe.get_value("Supplier", doc.supplier, "custom_company")
-#     if not supplier_company:
-#         frappe.throw(f"Supplier {doc.supplier} does not have a linked company.")
-
-#     # Get all warehouses of the supplier's company
-#     company_warehouses = frappe.get_all("Warehouse", filters={"company": supplier_company}, pluck="name")
-#     if not company_warehouses:
-#         frappe.throw(f"No warehouses found for company {supplier_company}")
-
-#     all_items_available = True
-#     some_items_available = False
-#     available_count = 0
-#     total_items = len(doc.items)
-
-#     for item in doc.items:
-#         # Fetch relevant stock from Stock Ledger Entry with matching pack size
-#         pack_size = item.custom_bundle_sizeuom  # assuming this holds the selected Pack Size (Link to Pack Size doctype)
-
-#         stock_data = frappe.db.sql(
-#             """
-#             SELECT SUM(actual_qty) FROM `tabStock Ledger Entry`
-#             WHERE item_code = %(item_code)s
-#             AND warehouse IN %(warehouses)s
-#             AND pack_size = %(pack_size)s
-#             AND is_cancelled = 0
-#             """,
-#             {
-#                 "item_code": item.item_code,
-#                 "warehouses": tuple(company_warehouses),
-#                 "pack_size": pack_size,
-#             }
-#         )
-
-#         stock_qty = stock_data[0][0] or 0
-#         item.custom_available_qty = stock_qty
-
-#         # Check availability for that pack size
-#         if stock_qty >= item.qty:
-#             item.custom_stock = "Available"
-#             available_count += 1
-#             some_items_available = True
-#         else:
-#             item.custom_stock = "Unavailable"
-#             all_items_available = False
-
-#     # Final state logic
-#     if total_items > 0:
-#         if available_count == total_items:
-#             doc.custom_states_ = "Approved"
-#         else:
-#             doc.custom_states_ = "Pending For Approval"
-
 
 
 import math
