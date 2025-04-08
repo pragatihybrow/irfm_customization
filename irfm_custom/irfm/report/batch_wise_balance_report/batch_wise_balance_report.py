@@ -10,14 +10,67 @@ from erpnext.stock.doctype.warehouse.warehouse import apply_warehouse_filter
 
 SLE_COUNT_LIMIT = 100_000
 
+# def execute(filters=None):
+# 	if not filters:
+# 		filters = {}
+
+# 	sle_count = frappe.db.estimate_count("Stock Ledger Entry")
+
+# 	if (
+# 		sle_count > SLE_COUNT_LIMIT
+# 		and not filters.get("item_code")
+# 		and not filters.get("warehouse")
+# 		and not filters.get("warehouse_type")
+# 	):
+# 		frappe.throw(
+# 			_("Please select either the Item or Warehouse or Warehouse Type filter to generate the report.")
+# 		)
+
+# 	if filters.from_date > filters.to_date:
+# 		frappe.throw(_("From Date must be before To Date"))
+
+# 	float_precision = cint(frappe.db.get_default("float_precision")) or 3
+
+# 	columns = get_columns(filters)
+# 	item_map = get_item_details(filters)
+# 	iwb_map = get_item_warehouse_batch_map(filters, float_precision)
+
+# 	data = []
+# 	for item in sorted(iwb_map):
+# 		if not filters.get("item") or filters.get("item") == item:
+# 			for wh in sorted(iwb_map[item]):
+# 				for batch in sorted(iwb_map[item][wh]):
+# 					for pack_size in sorted(iwb_map[item][wh][batch]):
+# 						qty_dict = iwb_map[item][wh][batch][pack_size]
+# 						if qty_dict.opening_qty or qty_dict.in_qty or qty_dict.out_qty or qty_dict.bal_qty:
+# 							data.append(
+# 								[
+# 									item,
+# 									item_map[item]["item_name"],
+# 									item_map[item]["description"],
+# 									wh,
+# 									batch,
+# 									pack_size,
+# 									flt(qty_dict.opening_qty, float_precision),
+# 									flt(qty_dict.in_qty, float_precision),
+# 									flt(qty_dict.out_qty, float_precision),
+# 									flt(qty_dict.bal_qty, float_precision),
+# 									item_map[item]["stock_uom"],
+# 								]
+# 							)
+
+# 	return columns, data
+
+
 def execute(filters=None):
 	if not filters:
 		filters = {}
 
-	sle_count = frappe.db.estimate_count("Stock Ledger Entry")
+	# Replace `estimate_count` with `count`
+	sle_count = frappe.db.count("Stock Ledger Entry")
 
 	if (
-		sle_count > SLE_COUNT_LIMIT
+		sle_count > 100_000
 		and not filters.get("item_code")
 		and not filters.get("warehouse")
 		and not filters.get("warehouse_type")
@@ -60,6 +113,7 @@ def execute(filters=None):
 							)
 
 	return columns, data
+
 
 def get_columns(filters):
 	columns = [
