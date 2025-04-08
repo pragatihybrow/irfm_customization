@@ -90,11 +90,75 @@ def create_sales_order(doc, method):
     frappe.msgprint(f"Sales Order {sales_order.name} created successfully for company {represents_company}!", alert=True)
 
 
-import math
-import frappe
+# import math
+# import frappe
+
+# @frappe.whitelist()
+# def update_custom_states(doc, method):
+#     supplier_company = frappe.get_value("Supplier", doc.supplier, "custom_company")
+#     if not supplier_company:
+#         frappe.throw(f"Supplier {doc.supplier} does not have a linked company.")
+
+#     company_warehouses = frappe.get_all("Warehouse", filters={"company": supplier_company}, pluck="name")
+#     if not company_warehouses:
+#         frappe.throw(f"No warehouses found for company {supplier_company}")
+
+#     all_items_available = True
+#     some_items_available = False
+#     available_count = 0
+#     total_items = len(doc.items)
+
+#     for item in doc.items:
+#         pack_size = item.custom_pack_size  # now correctly using the field from Purchase Order Item
+
+#         if not pack_size or pack_size <= 0:
+#             frappe.throw(f"Pack Size (custom_pack_size) is not set or invalid for item {item.item_code}")
+
+#         # Adjust qty to be multiple of pack size
+#         if item.qty % pack_size != 0:
+#             original_qty = item.qty
+#             item.qty = math.ceil(item.qty / pack_size) * pack_size
+#             frappe.msgprint(f"Quantity for item {item.item_code} adjusted from {original_qty} to {item.qty} to match pack size {pack_size}.")
+
+#         # Set number of packs
+#         item.custom_no_of_packs = item.qty / pack_size
+
+#         # Fetch stock with specific pack size
+#         stock_data = frappe.db.sql(
+#             """
+#             SELECT SUM(actual_qty) FROM `tabStock Ledger Entry`
+#             WHERE item_code = %(item_code)s
+#             AND warehouse IN %(warehouses)s
+#             AND pack_size = %(pack_size)s
+#             AND is_cancelled = 0
+#             """,
+#             {
+#                 "item_code": item.item_code,
+#                 "warehouses": tuple(company_warehouses),
+#                 "pack_size": item.custom_bundle_sizeuom,  # assuming this links to Pack Size doctype
+#             }
+#         )
+
+#         stock_qty = stock_data[0][0] or 0
+#         item.custom_available_qty = stock_qty
+
+#         if stock_qty >= item.qty:
+#             item.custom_stock = "Available"
+#             some_items_available = True
+#             available_count += 1
+#         else:
+#             item.custom_stock = "Unavailable"
+#             all_items_available = False
+
+#     if total_items > 0:
+#         doc.custom_states_ = "Approved" if available_count == total_items else "Pending For Approval"
+
 
 @frappe.whitelist()
 def update_custom_states(doc, method):
+    import math
+    doc = frappe.get_doc(doc) if isinstance(doc, str) else doc
+
     supplier_company = frappe.get_value("Supplier", doc.supplier, "custom_company")
     if not supplier_company:
         frappe.throw(f"Supplier {doc.supplier} does not have a linked company.")
@@ -109,21 +173,25 @@ def update_custom_states(doc, method):
     total_items = len(doc.items)
 
     for item in doc.items:
-        pack_size = item.custom_pack_size  # now correctly using the field from Purchase Order Item
+        pack_size = item.custom_pack_size
 
         if not pack_size or pack_size <= 0:
             frappe.throw(f"Pack Size (custom_pack_size) is not set or invalid for item {item.item_code}")
 
-        # Adjust qty to be multiple of pack size
-        if item.qty % pack_size != 0:
-            original_qty = item.qty
-            item.qty = math.ceil(item.qty / pack_size) * pack_size
-            frappe.msgprint(f"Quantity for item {item.item_code} adjusted from {original_qty} to {item.qty} to match pack size {pack_size}.")
+        # If number of packs is provided, update qty accordingly
+        if item.custom_no_of_packs and item.custom_no_of_packs > 0:
+            item.qty = item.custom_no_of_packs * pack_size
+        else:
+            # Adjust qty to be multiple of pack size
+            if item.qty % pack_size != 0:
+                original_qty = item.qty
+                item.qty = math.ceil(item.qty / pack_size) * pack_size
+                frappe.msgprint(f"Quantity for item {item.item_code} adjusted from {original_qty} to {item.qty} to match pack size {pack_size}.")
 
-        # Set number of packs
-        item.custom_no_of_packs = item.qty / pack_size
+            # Set number of packs
+            item.custom_no_of_packs = item.qty / pack_size
 
-        # Fetch stock with specific pack size
+        # Fetch stock for given pack size
         stock_data = frappe.db.sql(
             """
             SELECT SUM(actual_qty) FROM `tabStock Ledger Entry`
@@ -135,7 +203,7 @@ def update_custom_states(doc, method):
             {
                 "item_code": item.item_code,
                 "warehouses": tuple(company_warehouses),
-                "pack_size": item.custom_bundle_sizeuom,  # assuming this links to Pack Size doctype
+                "pack_size": item.custom_bundle_sizeuom,
             }
         )
 
@@ -152,7 +220,6 @@ def update_custom_states(doc, method):
 
     if total_items > 0:
         doc.custom_states_ = "Approved" if available_count == total_items else "Pending For Approval"
-
 
 
 def get_next_available_schedule_day(start_date, selected_days):
