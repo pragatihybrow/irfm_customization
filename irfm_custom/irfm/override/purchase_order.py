@@ -150,13 +150,71 @@ def create_sales_order(doc, method):
 
 
 
+# @frappe.whitelist()
+# def update_custom_states(doc, method):
+#     supplier_company = frappe.get_value("Supplier", doc.supplier, "custom_company")
+#     if not supplier_company:
+#         frappe.throw(f"Supplier {doc.supplier} does not have a linked company.")
+
+#     # Get all warehouses of the supplier's company
+#     company_warehouses = frappe.get_all("Warehouse", filters={"company": supplier_company}, pluck="name")
+#     if not company_warehouses:
+#         frappe.throw(f"No warehouses found for company {supplier_company}")
+
+#     all_items_available = True
+#     some_items_available = False
+#     available_count = 0
+#     total_items = len(doc.items)
+
+#     for item in doc.items:
+#         # Fetch relevant stock from Stock Ledger Entry with matching pack size
+#         pack_size = item.custom_bundle_sizeuom  # assuming this holds the selected Pack Size (Link to Pack Size doctype)
+
+#         stock_data = frappe.db.sql(
+#             """
+#             SELECT SUM(actual_qty) FROM `tabStock Ledger Entry`
+#             WHERE item_code = %(item_code)s
+#             AND warehouse IN %(warehouses)s
+#             AND pack_size = %(pack_size)s
+#             AND is_cancelled = 0
+#             """,
+#             {
+#                 "item_code": item.item_code,
+#                 "warehouses": tuple(company_warehouses),
+#                 "pack_size": pack_size,
+#             }
+#         )
+
+#         stock_qty = stock_data[0][0] or 0
+#         item.custom_available_qty = stock_qty
+
+#         # Check availability for that pack size
+#         if stock_qty >= item.qty:
+#             item.custom_stock = "Available"
+#             available_count += 1
+#             some_items_available = True
+#         else:
+#             item.custom_stock = "Unavailable"
+#             all_items_available = False
+
+#     # Final state logic
+#     if total_items > 0:
+#         if available_count == total_items:
+#             doc.custom_states_ = "Approved"
+#         else:
+#             doc.custom_states_ = "Pending For Approval"
+
+
+
+import math
+import frappe
+
 @frappe.whitelist()
 def update_custom_states(doc, method):
     supplier_company = frappe.get_value("Supplier", doc.supplier, "custom_company")
     if not supplier_company:
         frappe.throw(f"Supplier {doc.supplier} does not have a linked company.")
 
-    # Get all warehouses of the supplier's company
     company_warehouses = frappe.get_all("Warehouse", filters={"company": supplier_company}, pluck="name")
     if not company_warehouses:
         frappe.throw(f"No warehouses found for company {supplier_company}")
@@ -167,9 +225,21 @@ def update_custom_states(doc, method):
     total_items = len(doc.items)
 
     for item in doc.items:
-        # Fetch relevant stock from Stock Ledger Entry with matching pack size
-        pack_size = item.custom_bundle_sizeuom  # assuming this holds the selected Pack Size (Link to Pack Size doctype)
+        pack_size = item.custom_pack_size  # now correctly using the field from Purchase Order Item
 
+        if not pack_size or pack_size <= 0:
+            frappe.throw(f"Pack Size (custom_pack_size) is not set or invalid for item {item.item_code}")
+
+        # Adjust qty to be multiple of pack size
+        if item.qty % pack_size != 0:
+            original_qty = item.qty
+            item.qty = math.ceil(item.qty / pack_size) * pack_size
+            frappe.msgprint(f"Quantity for item {item.item_code} adjusted from {original_qty} to {item.qty} to match pack size {pack_size}.")
+
+        # Set number of packs
+        item.custom_no_of_packs = item.qty / pack_size
+
+        # Fetch stock with specific pack size
         stock_data = frappe.db.sql(
             """
             SELECT SUM(actual_qty) FROM `tabStock Ledger Entry`
@@ -181,69 +251,23 @@ def update_custom_states(doc, method):
             {
                 "item_code": item.item_code,
                 "warehouses": tuple(company_warehouses),
-                "pack_size": pack_size,
+                "pack_size": item.custom_bundle_sizeuom,  # assuming this links to Pack Size doctype
             }
         )
 
         stock_qty = stock_data[0][0] or 0
         item.custom_available_qty = stock_qty
 
-        # Check availability for that pack size
         if stock_qty >= item.qty:
             item.custom_stock = "Available"
-            available_count += 1
             some_items_available = True
+            available_count += 1
         else:
             item.custom_stock = "Unavailable"
             all_items_available = False
 
-    # Final state logic
     if total_items > 0:
-        if available_count == total_items:
-            doc.custom_states_ = "Approved"
-        else:
-            doc.custom_states_ = "Pending For Approval"
-
-
-# @frappe.whitelist()
-# def update_custom_states(doc, method):
-#     """Update custom_states_ and stock availability fields when saving the Purchase Order"""
-
-#     # Track stock availability
-#     all_items_available = True  # Assume all items are available
-#     some_items_available = False  # Track if at least one item is available
-#     available_count = 0  # Count of available items
-#     total_items = len(doc.items)
-
-#     # Check stock for all items in the PO
-#     for item in doc.items:
-#         stock_qty = frappe.get_value(
-#             "Bin", 
-#             {"warehouse": item.custom_supplier_warehouse, "item_code": item.item_code}, 
-#             "actual_qty"
-#         ) or 0
-
-#         # Set custom_available_qty
-#         item.custom_available_qty = stock_qty
-
-#         # Set custom_stock field
-#         if stock_qty >= item.qty:
-#             item.custom_stock = "Available"
-#             some_items_available = True
-#             available_count += 1  # Count available items
-#         else:
-#             item.custom_stock = "Unavailable"
-#             all_items_available = False  # If any item is out of stock, mark it
-
-#     # Set custom state before saving
-#     if total_items > 0:
-#         if available_count == total_items:
-#             doc.custom_states_ = "Approved"
-#         elif available_count > 0:
-#             doc.custom_states_ = "Pending For Approval"
-#         else:
-#             doc.custom_states_ = "Pending For Approval"  # No items are available
-
+        doc.custom_states_ = "Approved" if available_count == total_items else "Pending For Approval"
 
 
 
@@ -324,27 +348,4 @@ def set_schedule_date(doc):
     # Find the next available schedule day
     next_schedule_day = get_next_available_schedule_day(min_schedule_date, selected_days)
 
-#     return next_schedule_day
-
-# @frappe.whitelist()
-# def get_available_qty_for_item_pack(item_code, warehouse, pack_size, from_date=None, to_date=None):
-# 	from_date = getdate(from_date) if from_date else getdate("2000-01-01")
-# 	to_date = getdate(to_date) if to_date else getdate()
-
-# 	filters = {
-# 		"item_code": item_code,
-# 		"warehouse": warehouse,
-# 		"pack_size": pack_size,
-# 		"from_date": from_date,
-# 		"to_date": to_date,
-# 	}
-
-# 	float_precision = cint(frappe.db.get_default("float_precision")) or 3
-# 	iwb_map = get_item_warehouse_batch_map(filters, float_precision)
-
-# 	total_qty = 0
-# 	for batch_data in iwb_map.get(item_code, {}).get(warehouse, {}).values():
-# 		qty_dict = batch_data.get(pack_size or "") or {}
-# 		total_qty += flt(qty_dict.get("bal_qty", 0.0), float_precision)
-
-# 	return total_qty
+    return next_schedule_day
