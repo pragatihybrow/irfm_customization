@@ -90,101 +90,6 @@ def create_sales_order(doc, method):
     frappe.msgprint(f"Sales Order {sales_order.name} created successfully for company {represents_company}!", alert=True)
 
 
-# @frappe.whitelist()
-# def update_custom_states(doc, method):
-#     import math
-#     doc = frappe.get_doc(doc) if isinstance(doc, str) else doc
-
-#     supplier_company = frappe.get_value("Supplier", doc.supplier, "custom_company")
-#     if not supplier_company:
-#         frappe.throw(f"Supplier {doc.supplier} does not have a linked company.")
-
-#     company_warehouses = frappe.get_all("Warehouse", filters={"company": supplier_company}, pluck="name")
-#     if not company_warehouses:
-#         frappe.throw(f"No warehouses found for company {supplier_company}")
-
-#     new_items = []
-
-#     for item in list(doc.items):  # Iterate over a copy since we’ll be modifying doc.items
-#         item_code = item.item_code
-#         total_qty_needed = item.qty
-
-#         # Fetch available pack sizes with stock
-#         stock_entries = frappe.db.sql(
-#             """
-#             SELECT pack_size, SUM(actual_qty) AS total_qty
-#             FROM `tabStock Ledger Entry`
-#             WHERE item_code = %(item_code)s
-#               AND warehouse IN %(warehouses)s
-#               AND is_cancelled = 0
-#             GROUP BY pack_size
-#             ORDER BY pack_size DESC
-#             """,
-#             {
-#                 "item_code": item_code,
-#                 "warehouses": tuple(company_warehouses),
-#             },
-#             as_dict=True
-#         )
-
-#         qty_remaining = total_qty_needed
-#         item_split = False
-
-#         for stock in stock_entries:
-#             pack_size_name = stock.pack_size
-#             stock_qty = stock.total_qty or 0
-
-#             # Get numeric value of pack size from Pack Size doctype
-#             pack_conversion_qty = frappe.get_value("Pack Size", pack_size_name, "quantity")
-#             if not pack_conversion_qty:
-#                 continue
-
-#             num_packs_available = math.floor(stock_qty / pack_conversion_qty)
-#             packs_to_use = min(math.floor(qty_remaining / pack_conversion_qty), num_packs_available)
-#             qty_to_use = packs_to_use * pack_conversion_qty
-
-#             if qty_to_use <= 0:
-#                 continue
-
-#             # Create new item row
-#             new_item = item.as_dict().copy()
-#             new_item["qty"] = qty_to_use
-#             new_item["custom_bundle_sizeuom"] = pack_size_name
-#             new_item["custom_no_of_packs"] = packs_to_use
-#             new_item["custom_available_qty"] = stock_qty
-#             new_item["custom_pack_size"] = pack_conversion_qty
-#             new_item["custom_stock"] = "Available" if stock_qty >= qty_to_use else "Unavailable"
-#             new_items.append(new_item)
-
-#             qty_remaining -= qty_to_use
-#             item_split = True
-
-#             if qty_remaining <= 0:
-#                 break
-
-#         if item_split:
-#             # Remove the original unsplit item
-#             doc.remove(item)
-
-#             # If there’s still remaining qty and no more stock, mark it as unavailable
-#             if qty_remaining > 0:
-#                 unavailable_item = item.as_dict().copy()
-#                 unavailable_item["qty"] = qty_remaining
-#                 unavailable_item["custom_bundle_sizeuom"] = None
-#                 unavailable_item["custom_no_of_packs"] = 0
-#                 unavailable_item["custom_available_qty"] = 0
-#                 unavailable_item["custom_pack_size"] = 0
-#                 unavailable_item["custom_stock"] = "Unavailable"
-#                 new_items.append(unavailable_item)
-
-#     # Replace existing items with the newly split list
-#     doc.set("items", [])
-#     for i in new_items:
-#         doc.append("items", i)
-
-#     total_items = len(doc.items)
-#     available_count = sum(1 for i in doc.items if i.custom_stock == "Available")
-#     doc.custom_states_ = "Approved" if available_count == total_items else "Pending For Approval"
 
 @frappe.whitelist()
 def update_custom_states(doc, method):
@@ -203,7 +108,7 @@ def update_custom_states(doc, method):
 
     for item in list(doc.items):  # Iterate over a copy
         item_code = item.item_code
-        total_qty_needed = item.qty
+        requested_qty = item.qty
 
         # Get all pack sizes and their stock
         stock_entries = frappe.db.sql(
@@ -239,15 +144,14 @@ def update_custom_states(doc, method):
                 "total_pack_stock": total_pack_stock,
             })
 
-        # Step 1: Try exact match (like before)
+        # Step 1: Try exact match with a single pack size
         exact_match_found = False
         for p in sorted(pack_options, key=lambda x: x["pack_qty"]):
-            if total_qty_needed % p["pack_qty"] == 0:
-                packs_needed = total_qty_needed // p["pack_qty"]
+            if requested_qty % p["pack_qty"] == 0:
+                packs_needed = requested_qty // p["pack_qty"]
                 if packs_needed <= p["available_packs"]:
-                    # Exact match found
                     new_item = item.as_dict().copy()
-                    new_item["qty"] = total_qty_needed
+                    new_item["qty"] = requested_qty
                     new_item["custom_bundle_sizeuom"] = p["pack_size"]
                     new_item["custom_no_of_packs"] = packs_needed
                     new_item["custom_available_qty"] = p["stock_qty"]
@@ -261,49 +165,32 @@ def update_custom_states(doc, method):
         if exact_match_found:
             continue
 
-        # Step 2: Try finding best combination if no exact match
+        # Step 2: Try finding best combination <= requested_qty
         best_combo = []
         qty_used = 0
-        remaining_qty = total_qty_needed
+        remaining_qty = requested_qty
 
-        for p in sorted(pack_options, key=lambda x: -x["pack_qty"]):  # use largest packs first
-            pack_qty = p["pack_qty"]
-            packs_to_use = min(math.floor(remaining_qty / pack_qty), p["available_packs"])
+        for p in sorted(pack_options, key=lambda x: -x["pack_qty"]):  # largest pack size first
+            if remaining_qty <= 0:
+                break
+            packs_to_use = min(math.floor(remaining_qty / p["pack_qty"]), p["available_packs"])
             if packs_to_use <= 0:
                 continue
-            used_qty = packs_to_use * pack_qty
+            used_qty = packs_to_use * p["pack_qty"]
             best_combo.append({
                 "pack_size": p["pack_size"],
-                "pack_qty": pack_qty,
+                "pack_qty": p["pack_qty"],
                 "packs": packs_to_use,
                 "qty": used_qty,
                 "stock_qty": p["stock_qty"]
             })
             qty_used += used_qty
             remaining_qty -= used_qty
-            if remaining_qty <= 0:
-                break
 
-        if qty_used < total_qty_needed:
-            # Check if we can fulfill full qty + small extra (like 1 more pack)
-            for p in sorted(pack_options, key=lambda x: x["pack_qty"]):
-                if p["available_packs"] > 0:
-                    extra_qty = qty_used + p["pack_qty"]
-                    if extra_qty <= (total_qty_needed + 5):  # allow small increase
-                        best_combo.append({
-                            "pack_size": p["pack_size"],
-                            "pack_qty": p["pack_qty"],
-                            "packs": 1,
-                            "qty": p["pack_qty"],
-                            "stock_qty": p["stock_qty"]
-                        })
-                        qty_used += p["pack_qty"]
-                        break
-
-        if qty_used < total_qty_needed:
-            # Not enough stock
+        if qty_used == 0:
+            # No stock available at all
             unavailable_item = item.as_dict().copy()
-            unavailable_item["qty"] = total_qty_needed
+            unavailable_item["qty"] = requested_qty
             unavailable_item["custom_bundle_sizeuom"] = None
             unavailable_item["custom_no_of_packs"] = 0
             unavailable_item["custom_available_qty"] = 0
@@ -313,8 +200,10 @@ def update_custom_states(doc, method):
             doc.remove(item)
             continue
 
-        if qty_used > total_qty_needed:
-            frappe.throw(f"To fulfill the order efficiently, please update quantity for item {item_code} to {qty_used}.")
+        if qty_used != requested_qty:
+            frappe.throw(
+                f"To fulfill item {item_code}, please update quantity from {requested_qty} to {qty_used} to match available pack sizes."
+            )
 
         # Step 3: Apply best combo
         doc.remove(item)
@@ -336,6 +225,158 @@ def update_custom_states(doc, method):
     total_items = len(doc.items)
     available_count = sum(1 for i in doc.items if i.custom_stock == "Available")
     doc.custom_states_ = "Approved" if available_count == total_items else "Pending For Approval"
+
+
+# @frappe.whitelist()
+# def update_custom_states(doc, method):
+#     import math
+#     doc = frappe.get_doc(doc) if isinstance(doc, str) else doc
+
+#     supplier_company = frappe.get_value("Supplier", doc.supplier, "custom_company")
+#     if not supplier_company:
+#         frappe.throw(f"Supplier {doc.supplier} does not have a linked company.")
+
+#     company_warehouses = frappe.get_all("Warehouse", filters={"company": supplier_company}, pluck="name")
+#     if not company_warehouses:
+#         frappe.throw(f"No warehouses found for company {supplier_company}")
+
+#     new_items = []
+
+#     for item in list(doc.items):  # Iterate over a copy
+#         item_code = item.item_code
+#         total_qty_needed = item.qty
+
+#         # Get all pack sizes and their stock
+#         stock_entries = frappe.db.sql(
+#             """
+#             SELECT pack_size, SUM(actual_qty) AS total_qty
+#             FROM `tabStock Ledger Entry`
+#             WHERE item_code = %(item_code)s
+#               AND warehouse IN %(warehouses)s
+#               AND is_cancelled = 0
+#             GROUP BY pack_size
+#             """,
+#             {
+#                 "item_code": item_code,
+#                 "warehouses": tuple(company_warehouses),
+#             },
+#             as_dict=True
+#         )
+
+#         pack_options = []
+#         for stock in stock_entries:
+#             pack_size = stock.pack_size
+#             stock_qty = stock.total_qty or 0
+#             pack_qty = frappe.get_value("Pack Size", pack_size, "quantity")
+#             if not pack_qty:
+#                 continue
+#             num_packs = math.floor(stock_qty / pack_qty)
+#             total_pack_stock = num_packs * pack_qty
+#             pack_options.append({
+#                 "pack_size": pack_size,
+#                 "pack_qty": pack_qty,
+#                 "stock_qty": stock_qty,
+#                 "available_packs": num_packs,
+#                 "total_pack_stock": total_pack_stock,
+#             })
+
+#         # Step 1: Try exact match (like before)
+#         exact_match_found = False
+#         for p in sorted(pack_options, key=lambda x: x["pack_qty"]):
+#             if total_qty_needed % p["pack_qty"] == 0:
+#                 packs_needed = total_qty_needed // p["pack_qty"]
+#                 if packs_needed <= p["available_packs"]:
+#                     # Exact match found
+#                     new_item = item.as_dict().copy()
+#                     new_item["qty"] = total_qty_needed
+#                     new_item["custom_bundle_sizeuom"] = p["pack_size"]
+#                     new_item["custom_no_of_packs"] = packs_needed
+#                     new_item["custom_available_qty"] = p["stock_qty"]
+#                     new_item["custom_pack_size"] = p["pack_qty"]
+#                     new_item["custom_stock"] = "Available"
+#                     new_items.append(new_item)
+#                     doc.remove(item)
+#                     exact_match_found = True
+#                     break
+
+#         if exact_match_found:
+#             continue
+
+#         # Step 2: Try finding best combination if no exact match
+#         best_combo = []
+#         qty_used = 0
+#         remaining_qty = total_qty_needed
+
+#         for p in sorted(pack_options, key=lambda x: -x["pack_qty"]):  # use largest packs first
+#             pack_qty = p["pack_qty"]
+#             packs_to_use = min(math.floor(remaining_qty / pack_qty), p["available_packs"])
+#             if packs_to_use <= 0:
+#                 continue
+#             used_qty = packs_to_use * pack_qty
+#             best_combo.append({
+#                 "pack_size": p["pack_size"],
+#                 "pack_qty": pack_qty,
+#                 "packs": packs_to_use,
+#                 "qty": used_qty,
+#                 "stock_qty": p["stock_qty"]
+#             })
+#             qty_used += used_qty
+#             remaining_qty -= used_qty
+#             if remaining_qty <= 0:
+#                 break
+
+#         if qty_used < total_qty_needed:
+#             # Check if we can fulfill full qty + small extra (like 1 more pack)
+#             for p in sorted(pack_options, key=lambda x: x["pack_qty"]):
+#                 if p["available_packs"] > 0:
+#                     extra_qty = qty_used + p["pack_qty"]
+#                     if extra_qty <= (total_qty_needed + 5):  # allow small increase
+#                         best_combo.append({
+#                             "pack_size": p["pack_size"],
+#                             "pack_qty": p["pack_qty"],
+#                             "packs": 1,
+#                             "qty": p["pack_qty"],
+#                             "stock_qty": p["stock_qty"]
+#                         })
+#                         qty_used += p["pack_qty"]
+#                         break
+
+#         if qty_used < total_qty_needed:
+#             # Not enough stock
+#             unavailable_item = item.as_dict().copy()
+#             unavailable_item["qty"] = total_qty_needed
+#             unavailable_item["custom_bundle_sizeuom"] = None
+#             unavailable_item["custom_no_of_packs"] = 0
+#             unavailable_item["custom_available_qty"] = 0
+#             unavailable_item["custom_pack_size"] = 0
+#             unavailable_item["custom_stock"] = "Unavailable"
+#             new_items.append(unavailable_item)
+#             doc.remove(item)
+#             continue
+
+#         if qty_used > total_qty_needed:
+#             frappe.throw(f"To fulfill the order efficiently, please update quantity for item {item_code} to {qty_used}.")
+
+#         # Step 3: Apply best combo
+#         doc.remove(item)
+#         for row in best_combo:
+#             new_item = item.as_dict().copy()
+#             new_item["qty"] = row["qty"]
+#             new_item["custom_bundle_sizeuom"] = row["pack_size"]
+#             new_item["custom_no_of_packs"] = row["packs"]
+#             new_item["custom_available_qty"] = row["stock_qty"]
+#             new_item["custom_pack_size"] = row["pack_qty"]
+#             new_item["custom_stock"] = "Available"
+#             new_items.append(new_item)
+
+#     # Replace existing items
+#     doc.set("items", [])
+#     for i in new_items:
+#         doc.append("items", i)
+
+#     total_items = len(doc.items)
+#     available_count = sum(1 for i in doc.items if i.custom_stock == "Available")
+#     doc.custom_states_ = "Approved" if available_count == total_items else "Pending For Approval"
 
 
 
