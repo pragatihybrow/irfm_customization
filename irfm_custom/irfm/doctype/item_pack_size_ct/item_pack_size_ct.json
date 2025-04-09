@@ -1,0 +1,39 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-04-01 06:20:34.198729",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "bundle_size",
+  "quantity"
+ ],
+ "fields": [
+  {
+   "fetch_from": "pack_size.quantity",
+   "fieldname": "quantity",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Quantity"
+  },
+  {
+   "fieldname": "bundle_size",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Pack Size",
+   "options": "Pack Size"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-04-01 07:20:36.659863",
+ "modified_by": "Administrator",
+ "module": "IRFM",
+ "name": "Item Pack Size CT",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

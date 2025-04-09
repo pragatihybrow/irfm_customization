@@ -100,11 +100,12 @@ def create_pick_list(doc, method):
                 "stock_uom": item.stock_uom,
                 "warehouse": item.warehouse,
                 "stock_qty": item.custom_pack_size,
-                "picked_qty": 0,
+                "picked_qty": item.custom_pack_size,
                 "sales_order": doc.name,
                 "custom_item_barcode": first_barcode,
                 "custom_pack_size": item.custom_pack_size,
-                "custom_no_of_packs": item.custom_no_of_packs
+                "custom_no_of_packs": item.custom_no_of_packs,
+                "custom_uoms" : item.custom_bundle_sizeuom
             })
 
     pick_list.save(ignore_permissions=True)
