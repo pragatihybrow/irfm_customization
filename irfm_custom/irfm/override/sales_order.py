@@ -176,7 +176,6 @@ def create_pick_list(doc, method):
 
     if pick_list.locations:
         pick_list.save(ignore_permissions=True)
-        frappe.msgprint(f"✅ Draft Pick List {pick_list.name} created for Sales Order {doc.name}")
     else:
         frappe.msgprint("⚠️ No Pick List created — no items had available batches.")
 
