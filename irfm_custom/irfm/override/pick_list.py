@@ -166,6 +166,7 @@ def create_delivery_note_from_picklist(doc, method):
             "custom_uoms" :item.custom_uoms,
             "batch_no": item.batch_no,
             "use_serial_batch_fields":1,
+            "pack_size": item.custom_uoms
         })
 
     # Copy Taxes from Sales Order
