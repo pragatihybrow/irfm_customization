@@ -37,6 +37,7 @@ def create_sales_order(doc, method):
         "customer": doc.custom_customers,  
         "company": represents_company,
         "po_no": doc.name,
+        "po_date":doc.transaction_date,
         "transaction_date": doc.transaction_date,
         "delivery_date": doc.schedule_date,
         "currency": doc.currency,
