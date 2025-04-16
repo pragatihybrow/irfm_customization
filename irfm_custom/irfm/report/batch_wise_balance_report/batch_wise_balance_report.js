@@ -1,5 +1,5 @@
-// Copyright (c) 2025, Pragati Dike and contributors
-// For license information, please see license.txt
+// Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
+// License: GNU General Public License v3. See license.txt
 
 frappe.query_reports["Batch-Wise Balance Report"] = {
 	filters: [
@@ -83,7 +83,6 @@ frappe.query_reports["Batch-Wise Balance Report"] = {
 			fieldtype: "Link",
 			options: "Pack Size",
 		}
-		
 	],
 	formatter: function (value, row, column, data, default_formatter) {
 		if (column.fieldname == "Batch" && data && !!data["Batch"]) {
