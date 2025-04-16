@@ -92,62 +92,52 @@ from frappe.utils import today, add_days, getdate
 
 @frappe.whitelist()
 def create_sales_order(doc, method):
-    """Create a Sales Order when a Purchase Order is submitted, only if stock is fully available"""
+    if isinstance(doc, str):
+        doc = frappe.get_doc("Purchase Order", doc)
 
-    # Ensure SO is created only if PO is approved
+    # Check if the Purchase Order is approved
     if doc.custom_states_ != "Approved":
         frappe.throw("Purchase Order is not fully approved. Cannot create Sales Order.")
 
-    # Fetch the represents_company and is_internal_supplier field from Supplier
     supplier_details = frappe.get_value("Supplier", doc.supplier, ["represents_company", "is_internal_supplier"], as_dict=True)
+    
+    if not supplier_details or not supplier_details.is_internal_supplier:
+        return
 
-    if not supplier_details:
-        frappe.throw(f"Supplier {doc.supplier} not found.")
-
-    represents_company = supplier_details.get("represents_company")
-    is_internal_supplier = supplier_details.get("is_internal_supplier")
-
-    # If is_internal_supplier is not checked, do not create the Sales Order
-    if not is_internal_supplier:
-        return  # Do nothing, let it follow the core functionality
-
+    represents_company = supplier_details.represents_company
     if not represents_company:
         frappe.throw(f"Supplier {doc.supplier} does not have a represents_company set.")
 
-    # Get the default Sales Taxes and Charges Template for the represents_company
-    taxes_template = frappe.get_value("Sales Taxes and Charges Template", 
-                                      {"company": represents_company}, "name")
+    # Get company abbreviations
+    po_abbr = frappe.db.get_value("Company", doc.company, "abbr")
+    so_abbr = frappe.db.get_value("Company", represents_company, "abbr")
 
-    # Fetch the abbreviation for the companies
-    sales_order_abbr = frappe.get_value("Company", represents_company, "abbr")
-    po_abbr = frappe.get_value("Company", doc.company, "abbr")
+    # Adjust the tax template if needed
+    taxes_template = doc.taxes_and_charges
+    if taxes_template and po_abbr and so_abbr:
+        taxes_template = taxes_template.replace(f"- {po_abbr}", f"- {so_abbr}")
 
-    # Create new Sales Order
-    sales_order = frappe.get_doc({
-        "doctype": "Sales Order",
-        "customer": doc.custom_customers,  
+    # Create the Sales Order
+    so = frappe.new_doc("Sales Order")
+    so.update({
+        "customer": doc.custom_customers,
         "company": represents_company,
         "po_no": doc.name,
         "po_date": doc.transaction_date,
         "transaction_date": doc.transaction_date,
         "delivery_date": doc.schedule_date,
         "currency": doc.currency,
-        "taxes_and_charges": taxes_template,
         "set_warehouse": doc.custom_warehouse,
-        "items": [],
-        "taxes": []
+        "taxes_and_charges": taxes_template,
     })
 
-    # Ensure `set_warehouse` applies correctly
-    sales_order.set_warehouse = doc.custom_warehouse
-
-    # Map Purchase Order items to Sales Order items
+    # Add items to the Sales Order
     for item in doc.items:
-        sales_order.append("items", {
+        so.append("items", {
             "item_code": item.item_code,
             "item_name": item.item_name,
-            "custom_item_barcode": item.custom_item_barcode,
             "description": item.description,
+            "custom_item_barcode": item.custom_item_barcode,
             "qty": item.qty,
             "uom": item.uom,
             "rate": item.rate,
@@ -159,47 +149,31 @@ def create_sales_order(doc, method):
             "custom_no_of_packs": item.custom_no_of_packs
         })
 
-    # Set tax_category based on custom_state and custom_company_state
-    if doc.custom_state == doc.custom_company_state:
-        sales_order.tax_category = "In State"
-    else:
-        sales_order.tax_category = "Out State"
+    # Add taxes to the Sales Order if taxes_template exists
+    if taxes_template:
+        tax_details = frappe.get_all("Sales Taxes and Charges", 
+                                     filters={"parent": taxes_template}, 
+                                     fields=["charge_type", "account_head", "rate", "description"])
 
-    # Adjust taxes based on Purchase Order's taxes and charges
-    if doc.taxes_and_charges:
-        po_tax_details = frappe.get_all("Sales Taxes and Charges", 
-                                        filters={"parent": doc.taxes_and_charges}, 
-                                        fields=["charge_type", "account_head", "rate", "description"])
+        for tax in tax_details:
+            so.append("taxes", {
+                "charge_type": tax.charge_type,
+                "account_head": tax.account_head,
+                "rate": tax.rate,
+                "description": tax.description
+            })
 
-        for tax in po_tax_details:
-            # Check if the tax is related to Canada GST and modify the description using the Sales Order company abbreviation
-            if "Canada GST" in tax.description:
-                new_description = tax.description.replace(
-                    f"Canada GST - {po_abbr}",
-                    f"Canada GST - {sales_order_abbr}"
-                )
-                sales_order.append("taxes", {
-                    "charge_type": tax.charge_type,
-                    "account_head": tax.account_head,
-                    "rate": tax.rate,
-                    "description": new_description
-                })
-            else:
-                # Append other taxes as they are
-                sales_order.append("taxes", {
-                    "charge_type": tax.charge_type,
-                    "account_head": tax.account_head,
-                    "rate": tax.rate,
-                    "description": tax.description
-                })
+    # Set the tax category based on the state comparison
+    if doc.custom_company_state and doc.custom_state:
+        so.tax_category = "In State" if doc.custom_company_state == doc.custom_state else "Out State"
 
-    # Save and submit the Sales Order
-    sales_order.insert()
-    sales_order.db_set("set_warehouse", doc.custom_warehouse)
-    sales_order.save()
-    sales_order.submit()
+    # Insert the Sales Order, save, and submit
+    so.insert(ignore_permissions=True)
+    so.save()
+    so.submit()
 
-    frappe.msgprint(f"Sales Order {sales_order.name} created successfully for company {represents_company}!", alert=True)
+    # Display a success message
+    frappe.msgprint(f"Sales Order {so.name} created successfully for company {represents_company}!", alert=True)
 
 
 @frappe.whitelist()
