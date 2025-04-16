@@ -3,6 +3,93 @@ import json
 from frappe.utils import flt
 from frappe.utils import today, add_days, getdate
 
+# @frappe.whitelist()
+# def create_sales_order(doc, method):
+#     """Create a Sales Order when a Purchase Order is submitted, only if stock is fully available"""
+
+#     # Ensure SO is created only if PO is approved
+#     if doc.custom_states_ != "Approved":
+#         frappe.throw("Purchase Order is not fully approved. Cannot create Sales Order.")
+
+#     # Fetch the represents_company and is_internal_supplier field from Supplier
+#     supplier_details = frappe.get_value("Supplier", doc.supplier, ["represents_company", "is_internal_supplier"], as_dict=True)
+
+#     if not supplier_details:
+#         frappe.throw(f"Supplier {doc.supplier} not found.")
+
+#     represents_company = supplier_details.get("represents_company")
+#     is_internal_supplier = supplier_details.get("is_internal_supplier")
+
+#     # If is_internal_supplier is not checked, do not create the Sales Order
+#     if not is_internal_supplier:
+#         return  # Do nothing, let it follow the core functionality
+
+#     if not represents_company:
+#         frappe.throw(f"Supplier {doc.supplier} does not have a represents_company set.")
+
+#     # Get the default Sales Taxes and Charges Template for the represents_company
+#     taxes_template = frappe.get_value("Sales Taxes and Charges Template", 
+#                                       {"company": represents_company}, "name")
+
+#     # Create new Sales Order
+#     sales_order = frappe.get_doc({
+#         "doctype": "Sales Order",
+#         "customer": doc.custom_customers,  
+#         "company": represents_company,
+#         "po_no": doc.name,
+#         "po_date":doc.transaction_date,
+#         "transaction_date": doc.transaction_date,
+#         "delivery_date": doc.schedule_date,
+#         "currency": doc.currency,
+#         "taxes_and_charges": taxes_template,
+#         "set_warehouse": doc.custom_warehouse,
+#         "items": [],
+#         "taxes": []
+#     })
+
+#     # Ensure `set_warehouse` applies correctly
+#     sales_order.set_warehouse = doc.custom_warehouse
+
+#     # Map Purchase Order items to Sales Order items
+#     for item in doc.items:
+#         sales_order.append("items", {
+#             "item_code": item.item_code,
+#             "item_name": item.item_name,
+#             "custom_item_barcode": item.custom_item_barcode,
+#             "description": item.description,
+#             "qty": item.qty,
+#             "uom": item.uom,
+#             "rate": item.rate,
+#             "amount": item.amount,
+#             "warehouse": item.custom_supplier_warehouse,
+#             "purchase_order": doc.name,
+#             "custom_bundle_sizeuom":item.custom_bundle_sizeuom,
+#             "custom_pack_size" :item.custom_pack_size,
+#             "custom_no_of_packs": item.custom_no_of_packs
+#         })
+
+#     # If a tax template is found, fetch and apply the taxes
+#     if taxes_template:
+#         tax_details = frappe.get_all("Sales Taxes and Charges", 
+#                                      filters={"parent": taxes_template}, 
+#                                      fields=["charge_type", "account_head", "rate", "description"])
+
+#         for tax in tax_details:
+#             sales_order.append("taxes", {
+#                 "charge_type": tax.charge_type,
+#                 "account_head": tax.account_head,
+#                 "rate": tax.rate,
+#                 "description": tax.description
+#             })
+
+#     # Save and submit the Sales Order
+#     sales_order.insert()
+#     sales_order.db_set("set_warehouse", doc.custom_warehouse)
+#     sales_order.save()
+#     sales_order.submit()
+
+#     frappe.msgprint(f"Sales Order {sales_order.name} created successfully for company {represents_company}!", alert=True)
+
 @frappe.whitelist()
 def create_sales_order(doc, method):
     """Create a Sales Order when a Purchase Order is submitted, only if stock is fully available"""
@@ -31,13 +118,17 @@ def create_sales_order(doc, method):
     taxes_template = frappe.get_value("Sales Taxes and Charges Template", 
                                       {"company": represents_company}, "name")
 
+    # Fetch the abbreviation for the companies
+    sales_order_abbr = frappe.get_value("Company", represents_company, "abbr")
+    po_abbr = frappe.get_value("Company", doc.company, "abbr")
+
     # Create new Sales Order
     sales_order = frappe.get_doc({
         "doctype": "Sales Order",
         "customer": doc.custom_customers,  
         "company": represents_company,
         "po_no": doc.name,
-        "po_date":doc.transaction_date,
+        "po_date": doc.transaction_date,
         "transaction_date": doc.transaction_date,
         "delivery_date": doc.schedule_date,
         "currency": doc.currency,
@@ -63,24 +154,44 @@ def create_sales_order(doc, method):
             "amount": item.amount,
             "warehouse": item.custom_supplier_warehouse,
             "purchase_order": doc.name,
-            "custom_bundle_sizeuom":item.custom_bundle_sizeuom,
-            "custom_pack_size" :item.custom_pack_size,
+            "custom_bundle_sizeuom": item.custom_bundle_sizeuom,
+            "custom_pack_size": item.custom_pack_size,
             "custom_no_of_packs": item.custom_no_of_packs
         })
 
-    # If a tax template is found, fetch and apply the taxes
-    if taxes_template:
-        tax_details = frappe.get_all("Sales Taxes and Charges", 
-                                     filters={"parent": taxes_template}, 
-                                     fields=["charge_type", "account_head", "rate", "description"])
+    # Set tax_category based on custom_state and custom_company_state
+    if doc.custom_state == doc.custom_company_state:
+        sales_order.tax_category = "In State"
+    else:
+        sales_order.tax_category = "Out State"
 
-        for tax in tax_details:
-            sales_order.append("taxes", {
-                "charge_type": tax.charge_type,
-                "account_head": tax.account_head,
-                "rate": tax.rate,
-                "description": tax.description
-            })
+    # Adjust taxes based on Purchase Order's taxes and charges
+    if doc.taxes_and_charges:
+        po_tax_details = frappe.get_all("Sales Taxes and Charges", 
+                                        filters={"parent": doc.taxes_and_charges}, 
+                                        fields=["charge_type", "account_head", "rate", "description"])
+
+        for tax in po_tax_details:
+            # Check if the tax is related to Canada GST and modify the description using the Sales Order company abbreviation
+            if "Canada GST" in tax.description:
+                new_description = tax.description.replace(
+                    f"Canada GST - {po_abbr}",
+                    f"Canada GST - {sales_order_abbr}"
+                )
+                sales_order.append("taxes", {
+                    "charge_type": tax.charge_type,
+                    "account_head": tax.account_head,
+                    "rate": tax.rate,
+                    "description": new_description
+                })
+            else:
+                # Append other taxes as they are
+                sales_order.append("taxes", {
+                    "charge_type": tax.charge_type,
+                    "account_head": tax.account_head,
+                    "rate": tax.rate,
+                    "description": tax.description
+                })
 
     # Save and submit the Sales Order
     sales_order.insert()
@@ -89,7 +200,6 @@ def create_sales_order(doc, method):
     sales_order.submit()
 
     frappe.msgprint(f"Sales Order {sales_order.name} created successfully for company {represents_company}!", alert=True)
-
 
 
 @frappe.whitelist()
