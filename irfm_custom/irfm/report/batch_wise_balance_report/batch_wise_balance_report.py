@@ -60,6 +60,7 @@ def execute(filters=None):
 								wh,
 								batch,
 								qty_dict.pack_size,
+								qty_dict.name,
 								flt(qty_dict.opening_qty, float_precision),
 								flt(qty_dict.in_qty, float_precision),
 								flt(qty_dict.out_qty, float_precision),
@@ -80,7 +81,8 @@ def get_columns(filters):
 		_("Description") + "::150",
 		_("Warehouse") + ":Link/Warehouse:100",
 		_("Batch") + ":Link/Batch:100",
-        _("Pack Size") + ":Link/Batch:100",
+        _("Pack Size") + ":Link/Pack Size:100",
+		_("Voucher No") + ":Link/Stock Ledger Entry:100",
 		_("Opening Qty") + ":Float:90",
 		_("In Qty") + ":Float:80",
 		_("Out Qty") + ":Float:80",
@@ -116,6 +118,7 @@ def get_stock_ledger_entries_for_batch_no(filters):
 			sle.warehouse,
 			sle.batch_no,
 			sle.pack_size,
+			sle.name,
 			sle.posting_date,
 			fn.Sum(sle.actual_qty).as_("actual_qty"),
 		)
@@ -158,6 +161,7 @@ def get_stock_ledger_entries_for_batch_bundle(filters):
 			sle.warehouse,
 			batch_package.batch_no,
 			sle.pack_size,
+			sle.name,
 			sle.posting_date,
 			fn.Sum(batch_package.qty).as_("actual_qty"),
 		)
@@ -201,7 +205,7 @@ def get_item_warehouse_batch_map(filters, float_precision):
 
 	for d in sle:
 		iwb_map.setdefault(d.item_code, {}).setdefault(d.warehouse, {}).setdefault(
-			d.batch_no, frappe._dict({"opening_qty": 0.0, "in_qty": 0.0, "out_qty": 0.0, "bal_qty": 0.0, "pack_size": d.pack_size})
+			d.batch_no, frappe._dict({"opening_qty": 0.0, "in_qty": 0.0, "out_qty": 0.0, "bal_qty": 0.0, "pack_size": d.pack_size, "voucher_no": d.name})
 		)
 		qty_dict = iwb_map[d.item_code][d.warehouse][d.batch_no]
 		if d.posting_date < from_date:
