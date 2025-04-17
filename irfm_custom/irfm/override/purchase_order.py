@@ -285,12 +285,7 @@ def update_custom_states(doc, method):
             doc.remove(item)
             continue
 
-        if qty_used != requested_qty:
-            frappe.throw(
-                f"To fulfill item {item_code}, please update quantity from {requested_qty} to {qty_used} to match available pack sizes."
-            )
-
-        # Step 3: Apply best combo
+        # Step 3: Apply best combo (auto-adjust qty without error)
         doc.remove(item)
         for row in best_combo:
             new_item = item.as_dict().copy()
@@ -310,6 +305,7 @@ def update_custom_states(doc, method):
     total_items = len(doc.items)
     available_count = sum(1 for i in doc.items if i.custom_stock == "Available")
     doc.custom_states_ = "Approved" if available_count == total_items else "Pending For Approval"
+
 
 # @frappe.whitelist()
 # def update_custom_states(doc, method):
@@ -421,9 +417,8 @@ def update_custom_states(doc, method):
 #             continue
 
 #         if qty_used != requested_qty:
-#             available_pack_sizes = ", ".join([f"{p['pack_qty']} ({p['pack_size']})" for p in pack_options])
 #             frappe.throw(
-#                 f"To fulfill item {item_code}, please add quantities corresponding to the following available pack sizes: {available_pack_sizes}."
+#                 f"To fulfill item {item_code}, please update quantity from {requested_qty} to {qty_used} to match available pack sizes."
 #             )
 
 #         # Step 3: Apply best combo
@@ -446,7 +441,6 @@ def update_custom_states(doc, method):
 #     total_items = len(doc.items)
 #     available_count = sum(1 for i in doc.items if i.custom_stock == "Available")
 #     doc.custom_states_ = "Approved" if available_count == total_items else "Pending For Approval"
-
 
 
 def get_next_available_schedule_day(start_date, selected_days):
@@ -530,10 +524,14 @@ def set_schedule_date(doc):
 
 
 @frappe.whitelist()
-def get_batch_fifo_wise(item_code, warehouse):
+def get_batch_fifo_wise(item_code, warehouse, pack_size):
+    if not pack_size:
+        frappe.throw("Pack Size is required to fetch batches.")
+    
     kwargs = {
         "item_code": item_code,
-        "warehouse": warehouse
+        "warehouse": warehouse,
+        "pack_size": pack_size
     }
     batches = custom_get_available_batches(kwargs)
     return batches

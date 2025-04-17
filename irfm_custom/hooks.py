@@ -299,10 +299,13 @@ override_doctype_class = {
 
 override_doctype_dashboards = {
     "Delivery Note": "irfm_custom.irfm.override.delivery_note_dashboard.get_dashboard_data",
+    # "Project": "irfm_custom.irfm.override.project_dashboard.get_dashboard_data",
+
+
 }
 
 doctype_list_js = {
     "Sales Order": "public/js/sales_order_listview.js"
 }
 
-# doctype_js = {"Stock Entry" : "public/js/stock_entry.js"}
+doctype_js = {"Purchase Order" : "public/js/purchase_order.js"}
