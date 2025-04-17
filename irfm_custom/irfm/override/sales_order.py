@@ -125,7 +125,6 @@ def create_pick_list(doc, method):
     pick_list.company = doc.company
     pick_list.purpose = "Delivery"
     pick_list.parent_warehouse = doc.set_warehouse
-    pick_list.custom_sales_order = doc.name
 
     for item in doc.items:
         warehouse = item.warehouse or doc.set_warehouse
@@ -171,6 +170,9 @@ def create_pick_list(doc, method):
                 "custom_pack_size": pack_size,
                 "custom_no_of_packs": no_of_packs,
                 "custom_uoms": item.custom_bundle_sizeuom,
+                "custom_purchase_order": item.purchase_order,
+                "custom_purchase_order_item":item.purchase_order_item,
+                "sales_order_item":item.name
             })
             batch_index += 1
 

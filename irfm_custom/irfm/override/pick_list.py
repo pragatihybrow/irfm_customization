@@ -101,32 +101,124 @@ from frappe import _
 
 #     frappe.msgprint(_("Delivery Note {0} created successfully").format(delivery_note.name))
 
+# import frappe
+# from frappe import _
+
+# @frappe.whitelist()
+# def create_delivery_note_from_picklist(doc, method):
+#     """Create a Delivery Note when a Pick List is submitted."""
+
+#     # Create a new Delivery Note
+#     delivery_note = frappe.new_doc("Delivery Note")
+#     delivery_note.pick_list = doc.name  # Link Pick List
+#     delivery_note.customer = doc.customer
+#     delivery_note.set_warehouse = doc.parent_warehouse
+#     delivery_note.company = doc.company
+#     delivery_note.delivery_date = frappe.utils.today()
+
+#     # Get the first Sales Order to copy taxes
+#     if doc.locations:
+#         first_item = doc.locations[0]
+#         sales_order_doc = frappe.get_doc("Sales Order", first_item.sales_order)
+#         delivery_note.taxes_and_charges = sales_order_doc.taxes_and_charges
+
+#     # Store items and link them correctly
+#     for item in doc.locations:
+#         sales_order_doc = frappe.get_doc("Sales Order", item.sales_order)
+
+#         # Find Sales Order Item ID (so_detail)
+#         sales_order_item = None
+#         sales_order_rate = 0
+#         sales_order_amount = 0
+#         sales_order_net_rate = 0
+#         sales_order_net_amount = 0
+#         sales_order_discount = 0
+
+#         for soi in sales_order_doc.items:
+#             if soi.item_code == item.item_code:
+#                 sales_order_item = soi.name  # Sales Order Item ID
+#                 sales_order_rate = soi.rate  # Get item rate
+#                 sales_order_amount = soi.amount  # Get total amount
+#                 sales_order_net_rate = soi.net_rate  # Net rate
+#                 sales_order_net_amount = soi.net_amount  # Net amount
+#                 sales_order_discount = soi.discount_percentage  # Discount percentage
+#                 break  # Stop once found
+
+#         if not sales_order_item:
+#             frappe.throw(f"Sales Order Item not found for Item {item.item_code} in Sales Order {item.sales_order}")
+
+#         delivery_note.append("items", {
+#             "item_code": item.item_code,
+#             "qty": item.picked_qty,
+#             "uom": item.stock_uom,
+#             "warehouse": item.warehouse,
+#             "custom_box_barcode": item.custom_barcode,
+#             "custom_barcode_image": item.custom_barcode_image,
+#             "against_sales_order": item.sales_order,  # Ensure this is set correctly
+#             "so_detail": item.sales_order_item,  # Correctly linked to Sales Order Item ID
+#             "rate": sales_order_rate,  # Copy rate
+#             "amount": sales_order_amount,  # Copy amount
+#             "net_rate": sales_order_net_rate,  # Copy net rate
+#             "net_amount": sales_order_net_amount,  # Copy net amount
+#             "discount_percentage": sales_order_discount,  # Copy discount percentage
+#             "custom_pack_size" : item.custom_pack_size,
+#             "custom_no_of_packs": item.custom_no_of_packs,
+#             "custom_uoms" :item.custom_uoms,
+#             "batch_no": item.batch_no,
+#             "use_serial_batch_fields":1,
+#             "pack_size": item.custom_uoms,
+#             "purchase_order":item.custom_purchase_order,
+#             "purchase_order_item":item.custom_purchase_order,
+#             "custom_pick_list":doc.name,
+#             "pick_list_item":item.name,
+#             "custom_sales_order":item.sales_order,
+#             "pack_size":doc.custom_uoms,
+#         })
+
+#     # Copy Taxes from Sales Order
+#     for tax_entry in sales_order_doc.get("taxes", []):
+#         delivery_note.append("taxes", {
+#             "charge_type": tax_entry.charge_type,
+#             "account_head": tax_entry.account_head,
+#             "description": tax_entry.description,
+#             "rate": tax_entry.rate,
+#             "tax_amount": tax_entry.tax_amount
+#         })
+
+#     # Save and Submit Delivery Note
+#     delivery_note.insert(ignore_permissions=True)
+#     delivery_note.save(ignore_permissions=True)
+
+#     frappe.msgprint(_("Delivery Note {0} created successfully").format(delivery_note.name))
+
+
 import frappe
 from frappe import _
+from frappe.model.document import Document
+from frappe.utils import today
+from frappe.utils.nestedset import get_descendants_of
 
 @frappe.whitelist()
 def create_delivery_note_from_picklist(doc, method):
     """Create a Delivery Note when a Pick List is submitted."""
 
-    # Create a new Delivery Note
+    doc = frappe.get_doc(json.loads(doc)) if isinstance(doc, str) else doc
+
     delivery_note = frappe.new_doc("Delivery Note")
-    delivery_note.pick_list = doc.name  # Link Pick List
+    delivery_note.pick_list = doc.name
     delivery_note.customer = doc.customer
     delivery_note.set_warehouse = doc.parent_warehouse
     delivery_note.company = doc.company
-    delivery_note.delivery_date = frappe.utils.today()
+    delivery_note.delivery_date = today()
 
-    # Get the first Sales Order to copy taxes
     if doc.locations:
         first_item = doc.locations[0]
         sales_order_doc = frappe.get_doc("Sales Order", first_item.sales_order)
         delivery_note.taxes_and_charges = sales_order_doc.taxes_and_charges
 
-    # Store items and link them correctly
     for item in doc.locations:
         sales_order_doc = frappe.get_doc("Sales Order", item.sales_order)
 
-        # Find Sales Order Item ID (so_detail)
         sales_order_item = None
         sales_order_rate = 0
         sales_order_amount = 0
@@ -135,17 +227,17 @@ def create_delivery_note_from_picklist(doc, method):
         sales_order_discount = 0
 
         for soi in sales_order_doc.items:
-            if soi.item_code == item.item_code:
-                sales_order_item = soi.name  # Sales Order Item ID
-                sales_order_rate = soi.rate  # Get item rate
-                sales_order_amount = soi.amount  # Get total amount
-                sales_order_net_rate = soi.net_rate  # Net rate
-                sales_order_net_amount = soi.net_amount  # Net amount
-                sales_order_discount = soi.discount_percentage  # Discount percentage
-                break  # Stop once found
+            if soi.item_code == item.item_code and soi.name == item.sales_order_item:
+                sales_order_item = soi.name
+                sales_order_rate = soi.rate
+                sales_order_amount = soi.amount
+                sales_order_net_rate = soi.net_rate
+                sales_order_net_amount = soi.net_amount
+                sales_order_discount = soi.discount_percentage
+                break
 
         if not sales_order_item:
-            frappe.throw(f"Sales Order Item not found for Item {item.item_code} in Sales Order {item.sales_order}")
+            frappe.throw(_(f"Sales Order Item not found for Item {item.item_code} in Sales Order {item.sales_order}"))
 
         delivery_note.append("items", {
             "item_code": item.item_code,
@@ -154,22 +246,27 @@ def create_delivery_note_from_picklist(doc, method):
             "warehouse": item.warehouse,
             "custom_box_barcode": item.custom_barcode,
             "custom_barcode_image": item.custom_barcode_image,
-            "against_sales_order": item.sales_order,  # Ensure this is set correctly
-            "so_detail": sales_order_item,  # Correctly linked to Sales Order Item ID
-            "rate": sales_order_rate,  # Copy rate
-            "amount": sales_order_amount,  # Copy amount
-            "net_rate": sales_order_net_rate,  # Copy net rate
-            "net_amount": sales_order_net_amount,  # Copy net amount
-            "discount_percentage": sales_order_discount,  # Copy discount percentage
-            "custom_pack_size" : item.custom_pack_size,
+            "against_sales_order": item.sales_order,
+            "so_detail": item.sales_order_item,
+            "rate": sales_order_rate,
+            "amount": sales_order_amount,
+            "net_rate": sales_order_net_rate,
+            "net_amount": sales_order_net_amount,
+            "discount_percentage": sales_order_discount,
+            "custom_pack_size": item.custom_pack_size,
             "custom_no_of_packs": item.custom_no_of_packs,
-            "custom_uoms" :item.custom_uoms,
+            "custom_uoms": item.custom_uoms,
             "batch_no": item.batch_no,
-            "use_serial_batch_fields":1,
-            "pack_size": item.custom_uoms
+            "use_serial_batch_fields": 1,
+            "pack_size": item.custom_uoms,
+            "purchase_order": item.custom_purchase_order,
+            "purchase_order_item": item.custom_purchase_order_item,
+            "custom_pick_list": doc.name,
+            "pick_list_item": item.name,
+            "custom_sales_order": item.sales_order,
+            "to_pack_size":item.custom_uoms
         })
 
-    # Copy Taxes from Sales Order
     for tax_entry in sales_order_doc.get("taxes", []):
         delivery_note.append("taxes", {
             "charge_type": tax_entry.charge_type,
@@ -179,41 +276,54 @@ def create_delivery_note_from_picklist(doc, method):
             "tax_amount": tax_entry.tax_amount
         })
 
-    # Save and Submit Delivery Note
     delivery_note.insert(ignore_permissions=True)
     delivery_note.save(ignore_permissions=True)
 
     frappe.msgprint(_("Delivery Note {0} created successfully").format(delivery_note.name))
 
-
-# @frappe.whitelist()
-# def get_status(doc, docstatus, update_modified=True):
-#     if doc.docstatus == 0:
-#         doc.status = "Open"
-#     elif doc.docstatus == 1:
-#         doc.status = "Completed"
-#     elif doc.docstatus == 2:
-#         doc.status = "Cancelled"
-    
-#     doc.save(ignore_permissions=True)
-#     frappe.db.commit()
-#     return doc.status
-
 @frappe.whitelist()
 def get_status(doc, docstatus, update_modified=True):
     """Update status field based on docstatus after submission."""
 
-    # Determine status based on docstatus
-    if doc.docstatus == 0:
-        new_status = "Open"
-    elif doc.docstatus == 1:
-        new_status = "Completed"
-    elif doc.docstatus == 2:
-        new_status = "Cancelled"
+    doc = frappe.get_doc(json.loads(doc)) if isinstance(doc, str) else doc
 
-    frappe.db.set_value(doc.doctype, doc.name, "status", new_status, update_modified=update_modified)
-    
+    new_status = {
+        0: "Open",
+        1: "Completed",
+        2: "Cancelled"
+    }.get(doc.docstatus)
+
+    if new_status:
+        frappe.db.set_value(doc.doctype, doc.name, "status", new_status, update_modified=update_modified)
     return new_status
+# # @frappe.whitelist()
+# # def get_status(doc, docstatus, update_modified=True):
+# #     if doc.docstatus == 0:
+# #         doc.status = "Open"
+# #     elif doc.docstatus == 1:
+# #         doc.status = "Completed"
+# #     elif doc.docstatus == 2:
+# #         doc.status = "Cancelled"
+    
+# #     doc.save(ignore_permissions=True)
+# #     frappe.db.commit()
+# #     return doc.status
+
+# @frappe.whitelist()
+# def get_status(doc, docstatus, update_modified=True):
+#     """Update status field based on docstatus after submission."""
+
+#     # Determine status based on docstatus
+#     if doc.docstatus == 0:
+#         new_status = "Open"
+#     elif doc.docstatus == 1:
+#         new_status = "Completed"
+#     elif doc.docstatus == 2:
+#         new_status = "Cancelled"
+
+#     frappe.db.set_value(doc.doctype, doc.name, "status", new_status, update_modified=update_modified)
+    
+#     return new_status
 
 
 
