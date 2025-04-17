@@ -144,6 +144,7 @@ def create_pick_list(doc, method):
             pick_list.append("locations", {
                 "item_code": item.item_code,
                 "qty": item.custom_pack_size,
+                "uom":item.uom,
                 "stock_uom": item.stock_uom,
                 "warehouse": item.warehouse,
                 "stock_qty": item.custom_pack_size,
