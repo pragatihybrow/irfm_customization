@@ -82,7 +82,6 @@ def get_columns(filters):
 		_("Warehouse") + ":Link/Warehouse:100",
 		_("Batch") + ":Link/Batch:100",
         _("Pack Size") + ":Link/Pack Size:100",
-		_("Voucher No") + ":Link/Stock Ledger Entry:100",
 		_("Opening Qty") + ":Float:90",
 		_("In Qty") + ":Float:80",
 		_("Out Qty") + ":Float:80",
