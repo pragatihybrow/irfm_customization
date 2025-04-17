@@ -24,7 +24,8 @@ def create_purchase_invoice_from_grn(doc, method):
             "cost_center": item.cost_center,
             "purchase_receipt":doc.name,
             "purchase_order":item.purchase_order,
-            "purchase_order_item":item.purchase_order_item
+            "po_detail":item.purchase_order_item,
+            "pr_detail":item.name
         })
 
     # Add taxes from the Purchase Receipt (if applicable)
