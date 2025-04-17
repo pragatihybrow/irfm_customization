@@ -198,7 +198,7 @@ def update_custom_states(doc, method):
         # Get all pack sizes and their stock
         stock_entries = frappe.db.sql(
             """
-            SELECT pack_size, SUM(actual_qty) AS total_qty
+            SELECT pack_size, SUM(actual_qty) AS total_qty, warehouse
             FROM `tabStock Ledger Entry`
             WHERE item_code = %(item_code)s
               AND warehouse IN %(warehouses)s
@@ -214,6 +214,7 @@ def update_custom_states(doc, method):
 
         pack_options = []
         for stock in stock_entries:
+            warehouse = stock.warehouse
             pack_size = stock.pack_size
             stock_qty = stock.total_qty or 0
             pack_qty = frappe.get_value("Pack Size", pack_size, "quantity")
@@ -227,6 +228,7 @@ def update_custom_states(doc, method):
                 "stock_qty": stock_qty,
                 "available_packs": num_packs,
                 "total_pack_stock": total_pack_stock,
+                "custom_supplier_warehouse": warehouse
             })
 
         # Step 1: Try exact match with a single pack size
@@ -235,6 +237,7 @@ def update_custom_states(doc, method):
             if requested_qty % p["pack_qty"] == 0:
                 packs_needed = requested_qty // p["pack_qty"]
                 if packs_needed <= p["available_packs"]:
+                    batches = get_batch_fifo_wise(item_code, p["custom_supplier_warehouse"], p["pack_size"])
                     new_item = item.as_dict().copy()
                     new_item["qty"] = requested_qty
                     new_item["custom_bundle_sizeuom"] = p["pack_size"]
@@ -242,6 +245,7 @@ def update_custom_states(doc, method):
                     new_item["custom_available_qty"] = p["stock_qty"]
                     new_item["custom_pack_size"] = p["pack_qty"]
                     new_item["custom_stock"] = "Available"
+                    new_item["custom_batch_no"] = batches[0].batch_no if batches else ''
                     new_items.append(new_item)
                     doc.remove(item)
                     exact_match_found = True
@@ -296,7 +300,6 @@ def update_custom_states(doc, method):
             new_item["custom_pack_size"] = row["pack_qty"]
             new_item["custom_stock"] = "Available"
             new_items.append(new_item)
-
     # Replace existing items
     doc.set("items", [])
     for i in new_items:
