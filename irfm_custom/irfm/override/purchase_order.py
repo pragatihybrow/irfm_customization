@@ -2,7 +2,7 @@ import frappe
 import json
 from frappe.utils import flt
 from frappe.utils import today, add_days, getdate
-
+from irfm_custom.utils.stock_utils import custom_get_available_batches
 # @frappe.whitelist()
 # def create_sales_order(doc, method):
 #     """Create a Sales Order when a Purchase Order is submitted, only if stock is fully available"""
@@ -527,3 +527,13 @@ def set_schedule_date(doc):
     next_schedule_day = get_next_available_schedule_day(min_schedule_date, selected_days)
 
     return next_schedule_day
+
+
+@frappe.whitelist()
+def get_batch_fifo_wise(item_code, warehouse):
+    kwargs = {
+        "item_code": item_code,
+        "warehouse": warehouse
+    }
+    batches = custom_get_available_batches(kwargs)
+    return batches
