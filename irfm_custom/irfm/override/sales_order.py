@@ -106,80 +106,132 @@ def update_custom_stock(doc, method):
 #                 "custom_pack_size": item.custom_pack_size,
 #                 "custom_no_of_packs": item.custom_no_of_packs,
 #                 "custom_uoms" : item.custom_bundle_sizeuom
+#                 "use_serial_batch_fields":1,
+#                 "sales_order": doc.name,
+#                 "custom_item_barcode": first_barcode,
+#                 "custom_pack_size": pack_size,
+#                 "custom_no_of_packs": no_of_packs,
+#                 "custom_uoms": item.custom_bundle_sizeuom,
+#                 "custom_purchase_order": item.purchase_order,
+#                 "custom_purchase_order_item":item.purchase_order_item,
+#                 "sales_order_item":item.name,
+#                 "batch_no":item.custom_batch_no
 #             })
 
 #     pick_list.save(ignore_permissions=True)
 #     frappe.msgprint(f"Draft Pick List {pick_list.name} created for Sales Order {doc.name}!", alert=True)
 
-
-import frappe
-from frappe import _
-from irfm_custom.utils.stock_utils import custom_get_available_batches
-
 @frappe.whitelist()
 def create_pick_list(doc, method):
-    """Create a Draft Pick List when Sales Order is submitted, based on custom pack logic."""
+    """Create a Draft Pick List when a Sales Order is submitted, using custom_no_of_packs and custom_pack_size."""
+
     pick_list = frappe.new_doc("Pick List")
     pick_list.sales_order = doc.name
     pick_list.customer = doc.customer
     pick_list.company = doc.company
     pick_list.purpose = "Delivery"
     pick_list.parent_warehouse = doc.set_warehouse
+    pick_list.custom_sales_order = doc.name
 
     for item in doc.items:
-        warehouse = item.warehouse or doc.set_warehouse
-        kwargs = {
-            "item_code": item.item_code,
-            "warehouse": warehouse
-        }
-
-        frappe.logger().info(f">>> custom_get_available_batches kwargs: {kwargs}")
-        batches = custom_get_available_batches(kwargs)
-        frappe.logger().info(f">>> Result: {batches}")
-
-        if not batches:
-            frappe.msgprint(f"No batch available for Item {item.item_code} in Warehouse {warehouse}")
-            continue
-
-        # Barcode
+        # Fetch the first barcode from Item
         item_doc = frappe.get_doc("Item", item.item_code)
         first_barcode = item_doc.barcodes[0].barcode if item_doc.barcodes else None
 
         no_of_packs = int(item.custom_no_of_packs or 0)
-        pack_size = float(item.custom_pack_size or 0)
 
-        # Loop through batches
-        batch_index = 0
         for _ in range(no_of_packs):
-            if batch_index >= len(batches):
-                frappe.msgprint(f"Not enough batch stock for Item {item.item_code}")
-                break
-
-            batch = batches[batch_index]
             pick_list.append("locations", {
                 "item_code": item.item_code,
-                "qty": pack_size,
+                "qty": item.custom_pack_size,
                 "stock_uom": item.stock_uom,
-                "warehouse": warehouse,
-                "stock_qty": pack_size,
-                "picked_qty": pack_size,
-                "batch_no": batch.get("batch_no"),
-                "use_serial_batch_fields":1,
+                "warehouse": item.warehouse,
+                "stock_qty": item.custom_pack_size,
+                "picked_qty": item.custom_pack_size,
                 "sales_order": doc.name,
                 "custom_item_barcode": first_barcode,
-                "custom_pack_size": pack_size,
+                "custom_pack_size":item.custom_pack_size,
                 "custom_no_of_packs": no_of_packs,
                 "custom_uoms": item.custom_bundle_sizeuom,
+                "use_serial_batch_fields": 1,
                 "custom_purchase_order": item.purchase_order,
-                "custom_purchase_order_item":item.purchase_order_item,
-                "sales_order_item":item.name
+                "custom_purchase_order_item": item.purchase_order_item,
+                "sales_order_item": item.name,
+                "batch_no": item.custom_batch_no
             })
-            batch_index += 1
 
-    if pick_list.locations:
-        pick_list.save(ignore_permissions=True)
-    else:
-        frappe.msgprint("⚠️ No Pick List created — no items had available batches.")
+    pick_list.save(ignore_permissions=True)
+    frappe.msgprint(f"Draft Pick List {pick_list.name} created for Sales Order {doc.name}!", alert=True)
+
+
+# import frappe
+# from frappe import _
+# from irfm_custom.utils.stock_utils import custom_get_available_batches
+
+# @frappe.whitelist()
+# def create_pick_list(doc, method):
+#     """Create a Draft Pick List when Sales Order is submitted, based on custom pack logic."""
+#     pick_list = frappe.new_doc("Pick List")
+#     pick_list.sales_order = doc.name
+#     pick_list.customer = doc.customer
+#     pick_list.company = doc.company
+#     pick_list.purpose = "Delivery"
+#     pick_list.parent_warehouse = doc.set_warehouse
+
+#     for item in doc.items:
+#         warehouse = item.warehouse or doc.set_warehouse
+#         kwargs = {
+#             "item_code": item.item_code,
+#             "warehouse": warehouse
+#         }
+
+#         frappe.logger().info(f">>> custom_get_available_batches kwargs: {kwargs}")
+#         batches = custom_get_available_batches(kwargs)
+#         frappe.logger().info(f">>> Result: {batches}")
+
+#         if not batches:
+#             # frappe.msgprint(f"No batch available for Item {item.item_code} in Warehouse {warehouse}")
+#             continue
+
+#         # Barcode
+#         item_doc = frappe.get_doc("Item", item.item_code)
+#         first_barcode = item_doc.barcodes[0].barcode if item_doc.barcodes else None
+
+#         no_of_packs = int(item.custom_no_of_packs or 0)
+#         pack_size = float(item.custom_pack_size or 0)
+
+#         # Loop through batches
+#         batch_index = 0
+#         for _ in range(no_of_packs):
+#             if batch_index >= len(batches):
+#                 # frappe.msgprint(f"Not enough batch stock for Item {item.item_code}")
+#                 break
+
+#             batch = batches[batch_index]
+#             pick_list.append("locations", {
+#                 "item_code": item.item_code,
+#                 "qty": pack_size,
+#                 "stock_uom": item.stock_uom,
+#                 "warehouse": warehouse,
+#                 "stock_qty": pack_size,
+#                 "picked_qty": pack_size,
+#                 "batch_no": batch.get("batch_no"),
+#                 "use_serial_batch_fields":1,
+#                 "sales_order": doc.name,
+#                 "custom_item_barcode": first_barcode,
+#                 "custom_pack_size": pack_size,
+#                 "custom_no_of_packs": no_of_packs,
+#                 "custom_uoms": item.custom_bundle_sizeuom,
+#                 "custom_purchase_order": item.purchase_order,
+#                 "custom_purchase_order_item":item.purchase_order_item,
+#                 "sales_order_item":item.name
+#             })
+#             batch_index += 1
+
+#     if pick_list.locations:
+#         pick_list.save(ignore_permissions=True)
+#     else:
+#         frappe.msgprint("⚠️ No Pick List created — no items had available batches.")
 
 @frappe.whitelist()
 def update_custom_states(doc, method):

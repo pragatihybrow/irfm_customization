@@ -147,7 +147,8 @@ def create_sales_order(doc, method):
             "purchase_order_item":item.name,
             "custom_bundle_sizeuom": item.custom_bundle_sizeuom,
             "custom_pack_size": item.custom_pack_size,
-            "custom_no_of_packs": item.custom_no_of_packs
+            "custom_no_of_packs": item.custom_no_of_packs,
+            "custom_batch_no":item.custom_batch_no
         })
 
     # Add taxes to the Sales Order if taxes_template exists
