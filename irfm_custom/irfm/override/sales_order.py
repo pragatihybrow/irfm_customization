@@ -31,99 +31,15 @@ def update_custom_stock(doc, method):
             item.custom_stock = "Unavailable"
 
 
-# @frappe.whitelist()
-# def create_pick_list(doc, method):
-#     """Create a Draft Pick List when a Sales Order is submitted, ensuring 1 row per quantity"""
-
-#     # Create a new Pick List document
-#     pick_list = frappe.new_doc("Pick List")
-#     pick_list.sales_order = doc.name
-#     pick_list.customer = doc.customer
-#     pick_list.company = doc.company
-#     pick_list.purpose = "Delivery"
-#     pick_list.parent_warehouse = doc.set_warehouse
-#     pick_list.custom_sales_order = doc.name
-
-#     # Loop through each item in the Sales Order
-#     for item in doc.items:
-#         # Fetch the first barcode from the Item doctype (fetch only once per item)
-#         item_doc = frappe.get_doc("Item", item.item_code)
-#         first_barcode = item_doc.barcodes[0].barcode if item_doc.barcodes else None
-
-#         # Create a row for each quantity (1 row per qty = 1)
-#         for _ in range(int(item.qty)):
-#             pick_list.append("locations", {
-#                 "item_code": item.item_code,
-#                 "qty": 1,  # Each row has exactly 1 quantity
-#                 "stock_uom": item.stock_uom,
-#                 "warehouse": item.warehouse,
-#                 "stock_qty": 1,  # Adjust stock_qty to 1
-#                 "picked_qty": 0,  # Default to 0 for picked_qty
-#                 "sales_order": doc.name,
-#                 "custom_item_barcode": first_barcode,  # Use first barcode
-#                 "custom_pack_size" : item.custom_pack_size,
-#                 "custom_uoms" : item.custom_bundle_sizeuom
-#             })
-
-#     # Save the Pick List as Draft
-#     pick_list.save(ignore_permissions=True)
-
-#     frappe.msgprint(f"Draft Pick List {pick_list.name} created for Sales Order {doc.name}!", alert=True)
-
-
-# @frappe.whitelist()
-# def create_pick_list(doc, method):
-#     """Create a Draft Pick List when a Sales Order is submitted, using custom_no_of_packs and custom_pack_size."""
-
-#     pick_list = frappe.new_doc("Pick List")
-#     pick_list.sales_order = doc.name
-#     pick_list.customer = doc.customer
-#     pick_list.company = doc.company
-#     pick_list.purpose = "Delivery"
-#     pick_list.parent_warehouse = doc.set_warehouse
-#     pick_list.custom_sales_order = doc.name
-
-#     for item in doc.items:
-#         # Fetch the first barcode from Item
-#         item_doc = frappe.get_doc("Item", item.item_code)
-#         first_barcode = item_doc.barcodes[0].barcode if item_doc.barcodes else None
-
-#         # Ensure custom fields are valid
-#         no_of_packs = int(item.custom_no_of_packs or 0)
-#         # pack_size = flt(item.custom_pack_size or 0)
-
-#         # Create 1 row per pack (custom_no_of_packs), with qty = custom_pack_size
-#         for _ in range(no_of_packs):
-#             pick_list.append("locations", {
-#                 "item_code": item.item_code,
-#                 "qty": item.custom_pack_size,
-#                 "stock_uom": item.stock_uom,
-#                 "warehouse": item.warehouse,
-#                 "stock_qty": item.custom_pack_size,
-#                 "picked_qty": item.custom_pack_size,
-#                 "sales_order": doc.name,
-#                 "custom_item_barcode": first_barcode,
-#                 "custom_pack_size": item.custom_pack_size,
-#                 "custom_no_of_packs": item.custom_no_of_packs,
-#                 "custom_uoms" : item.custom_bundle_sizeuom
-#                 "use_serial_batch_fields":1,
-#                 "sales_order": doc.name,
-#                 "custom_item_barcode": first_barcode,
-#                 "custom_pack_size": pack_size,
-#                 "custom_no_of_packs": no_of_packs,
-#                 "custom_uoms": item.custom_bundle_sizeuom,
-#                 "custom_purchase_order": item.purchase_order,
-#                 "custom_purchase_order_item":item.purchase_order_item,
-#                 "sales_order_item":item.name,
-#                 "batch_no":item.custom_batch_no
-#             })
-
-#     pick_list.save(ignore_permissions=True)
-#     frappe.msgprint(f"Draft Pick List {pick_list.name} created for Sales Order {doc.name}!", alert=True)
+import random
+import os
+import frappe
+import barcode
+from barcode.writer import ImageWriter
 
 @frappe.whitelist()
 def create_pick_list(doc, method):
-    """Create a Draft Pick List when a Sales Order is submitted, using custom_no_of_packs and custom_pack_size."""
+    """Create a Draft Pick List when a Sales Order is submitted."""
 
     pick_list = frappe.new_doc("Pick List")
     pick_list.sales_order = doc.name
@@ -132,107 +48,82 @@ def create_pick_list(doc, method):
     pick_list.purpose = "Delivery"
     pick_list.parent_warehouse = doc.set_warehouse
     pick_list.custom_sales_order = doc.name
+    pick_list.save(ignore_permissions=True)  # Save early to get name for file linking
 
     for item in doc.items:
-        # Fetch the first barcode from Item
         item_doc = frappe.get_doc("Item", item.item_code)
         first_barcode = item_doc.barcodes[0].barcode if item_doc.barcodes else None
 
         no_of_packs = int(item.custom_no_of_packs or 0)
 
         for _ in range(no_of_packs):
+            generated_barcode = generate_ean13_barcode()
+            barcode_image_url = generate_and_save_barcode_image(generated_barcode, pick_list.name)
+
             pick_list.append("locations", {
                 "item_code": item.item_code,
                 "qty": item.custom_pack_size,
-                "uom":item.uom,
+                "uom": item.uom,
                 "stock_uom": item.stock_uom,
                 "warehouse": item.warehouse,
                 "stock_qty": item.custom_pack_size,
-                "picked_qty": item.custom_pack_size,
+                "picked_qty": 0,
                 "sales_order": doc.name,
                 "custom_item_barcode": first_barcode,
-                "custom_pack_size":item.custom_pack_size,
+                "custom_pack_size": item.custom_pack_size,
                 "custom_no_of_packs": no_of_packs,
                 "custom_uoms": item.custom_bundle_sizeuom,
                 "use_serial_batch_fields": 1,
                 "custom_purchase_order": item.purchase_order,
                 "custom_purchase_order_item": item.purchase_order_item,
                 "sales_order_item": item.name,
-                "batch_no": item.custom_batch_no
+                "batch_no": item.custom_batch_no,
+                "custom_barcode": generated_barcode,
+                "custom_barcode_image":generated_barcode,
+                "custom_attached_barcode": barcode_image_url
             })
 
     pick_list.save(ignore_permissions=True)
     frappe.msgprint(f"Draft Pick List {pick_list.name} created for Sales Order {doc.name}!", alert=True)
 
+def generate_ean13_barcode():
+    """Generate a valid EAN-13 barcode with India prefix (890)"""
+    prefix = "890"
+    random_part = ''.join([str(random.randint(0, 9)) for _ in range(9)])
+    partial_barcode = prefix + random_part
+    check_digit = calculate_ean13_check_digit(partial_barcode)
+    return partial_barcode + str(check_digit)
 
-# import frappe
-# from frappe import _
-# from irfm_custom.utils.stock_utils import custom_get_available_batches
+def calculate_ean13_check_digit(barcode):
+    """Calculate the EAN-13 check digit from the first 12 digits"""
+    digits = list(map(int, barcode))
+    total = sum(d if i % 2 == 0 else d * 3 for i, d in enumerate(digits))
+    return (10 - (total % 10)) % 10
 
-# @frappe.whitelist()
-# def create_pick_list(doc, method):
-#     """Create a Draft Pick List when Sales Order is submitted, based on custom pack logic."""
-#     pick_list = frappe.new_doc("Pick List")
-#     pick_list.sales_order = doc.name
-#     pick_list.customer = doc.customer
-#     pick_list.company = doc.company
-#     pick_list.purpose = "Delivery"
-#     pick_list.parent_warehouse = doc.set_warehouse
+def generate_and_save_barcode_image(barcode_value, pick_list_name):
+    """Generate a scannable EAN-13 barcode image and save it as a public file"""
 
-#     for item in doc.items:
-#         warehouse = item.warehouse or doc.set_warehouse
-#         kwargs = {
-#             "item_code": item.item_code,
-#             "warehouse": warehouse
-#         }
+    file_path_no_ext = frappe.utils.get_site_path('public', 'files', barcode_value)
 
-#         frappe.logger().info(f">>> custom_get_available_batches kwargs: {kwargs}")
-#         batches = custom_get_available_batches(kwargs)
-#         frappe.logger().info(f">>> Result: {batches}")
+    ean = barcode.get('ean13', barcode_value, writer=ImageWriter())
+    full_path = ean.save(file_path_no_ext)
 
-#         if not batches:
-#             # frappe.msgprint(f"No batch available for Item {item.item_code} in Warehouse {warehouse}")
-#             continue
+    file_url = f'/files/{barcode_value}.png'
 
-#         # Barcode
-#         item_doc = frappe.get_doc("Item", item.item_code)
-#         first_barcode = item_doc.barcodes[0].barcode if item_doc.barcodes else None
+    # Create File record in Frappe
+    file = frappe.get_doc({
+        'doctype': 'File',
+        'file_name': f'{barcode_value}.png',
+        'file_url': file_url,
+        'attached_to_doctype': 'Pick List',
+        'attached_to_name': pick_list_name,
+        'is_private': 0
+    })
+    file.insert(ignore_permissions=True)
 
-#         no_of_packs = int(item.custom_no_of_packs or 0)
-#         pack_size = float(item.custom_pack_size or 0)
+    return file_url
 
-#         # Loop through batches
-#         batch_index = 0
-#         for _ in range(no_of_packs):
-#             if batch_index >= len(batches):
-#                 # frappe.msgprint(f"Not enough batch stock for Item {item.item_code}")
-#                 break
 
-#             batch = batches[batch_index]
-#             pick_list.append("locations", {
-#                 "item_code": item.item_code,
-#                 "qty": pack_size,
-#                 "stock_uom": item.stock_uom,
-#                 "warehouse": warehouse,
-#                 "stock_qty": pack_size,
-#                 "picked_qty": pack_size,
-#                 "batch_no": batch.get("batch_no"),
-#                 "use_serial_batch_fields":1,
-#                 "sales_order": doc.name,
-#                 "custom_item_barcode": first_barcode,
-#                 "custom_pack_size": pack_size,
-#                 "custom_no_of_packs": no_of_packs,
-#                 "custom_uoms": item.custom_bundle_sizeuom,
-#                 "custom_purchase_order": item.purchase_order,
-#                 "custom_purchase_order_item":item.purchase_order_item,
-#                 "sales_order_item":item.name
-#             })
-#             batch_index += 1
-
-#     if pick_list.locations:
-#         pick_list.save(ignore_permissions=True)
-#     else:
-#         frappe.msgprint("⚠️ No Pick List created — no items had available batches.")
 
 @frappe.whitelist()
 def update_custom_states(doc, method):
