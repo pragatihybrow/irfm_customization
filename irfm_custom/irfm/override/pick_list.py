@@ -215,6 +215,8 @@ def create_delivery_note_from_picklist(doc, method):
         first_item = doc.locations[0]
         sales_order_doc = frappe.get_doc("Sales Order", first_item.sales_order)
         delivery_note.taxes_and_charges = sales_order_doc.taxes_and_charges
+        delivery_note.tax_category = sales_order_doc.tax_category
+
 
     for item in doc.locations:
         sales_order_doc = frappe.get_doc("Sales Order", item.sales_order)
