@@ -283,7 +283,7 @@ doc_events = {
      ]
     },
     "Purchase Order":{
-       "validate":[ "irfm_custom.irfm.override.purchase_order.update_custom_states"],
+       "before_save":[ "irfm_custom.irfm.override.purchase_order.update_custom_states"],
        "on_submit":[ "irfm_custom.irfm.override.purchase_order.create_sales_order"]
     }
 }

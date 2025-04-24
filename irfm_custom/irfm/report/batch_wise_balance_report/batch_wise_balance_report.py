@@ -60,7 +60,6 @@ def execute(filters=None):
 								wh,
 								batch,
 								qty_dict.pack_size,
-								qty_dict.name,
 								flt(qty_dict.opening_qty, float_precision),
 								flt(qty_dict.in_qty, float_precision),
 								flt(qty_dict.out_qty, float_precision),
