@@ -147,7 +147,7 @@ def update_custom_states(doc, method):
                 new_item["custom_pack_size"] = pack_qty
                 new_item["custom_stock"] = "Available"
                 new_item["custom_batch_no"] = batches[0].batch_no if batches else ''
-                new_item["custom_supplier_warehouse"] = warehouse
+                new_item["custom_supplier_warehouse"] = doc.custom_warehouse
                 new_items.append(new_item)
                 continue  # skip the rest of logic for this item
 
@@ -180,7 +180,7 @@ def update_custom_states(doc, method):
                 "packs": usable_packs,
                 "qty": used_qty,
                 "stock_qty": available_qty,  # Correct available stock quantity
-                "custom_supplier_warehouse": warehouse
+                "custom_supplier_warehouse": doc.custom_warehouse
             })
 
             qty_used += used_qty
