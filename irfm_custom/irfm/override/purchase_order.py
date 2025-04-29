@@ -93,136 +93,6 @@ def create_sales_order(doc, method):
 
 
 
-
-# @frappe.whitelist()
-# def update_custom_states(doc, method):
-#     import math
-#     doc = frappe.get_doc(doc) if isinstance(doc, str) else doc
-
-#     supplier_company = frappe.get_value("Supplier", doc.supplier, "custom_company")
-#     if not supplier_company:
-#         frappe.throw(f"Supplier {doc.supplier} does not have a linked company.")
-
-#     company_warehouses = frappe.get_all("Warehouse", filters={"company": supplier_company}, pluck="name")
-#     if not company_warehouses:
-#         frappe.throw(f"No warehouses found for company {supplier_company}")
-
-#     new_items = []
-
-#     for item in list(doc.items):  # Iterate over a copy of the items list
-#         item_code = item.item_code
-#         requested_qty = item.qty
-#         qty_used = 0
-#         remaining_qty = requested_qty
-#         fifo_combo = []
-
-#         # Fetch FIFO-wise stock entries by posting_date, grouped by pack size
-#         stock_entries = frappe.db.sql("""
-#             SELECT sle.pack_size, SUM(sle.actual_qty) AS stock_qty, sle.warehouse, MIN(sle.posting_date) AS posting_date
-#             FROM `tabStock Ledger Entry` sle
-#             WHERE sle.item_code = %(item_code)s
-#               AND sle.warehouse IN %(warehouses)s
-#               AND sle.is_cancelled = 0
-#             GROUP BY sle.pack_size, sle.warehouse
-#             ORDER BY posting_date ASC
-#         """, {
-#             "item_code": item_code,
-#             "warehouses": tuple(company_warehouses)
-#         }, as_dict=True)
-
-#         # If qty is exactly 1, just take the first available pack size
-#         if requested_qty == 1 and stock_entries:
-#             entry = stock_entries[0]
-#             pack_size = entry.pack_size
-#             stock_qty = entry.stock_qty
-#             warehouse = entry.warehouse
-#             pack_qty = frappe.get_value("Pack Size", pack_size, "quantity")
-
-#             if pack_qty and stock_qty >= pack_qty:
-#                 batches = get_batch_fifo_wise(item_code, warehouse, pack_size)
-#                 new_item = item.as_dict().copy()
-#                 new_item["qty"] = pack_qty
-#                 new_item["custom_bundle_sizeuom"] = pack_size
-#                 new_item["custom_no_of_packs"] = 1
-#                 new_item["custom_available_qty"] = stock_qty
-#                 new_item["custom_pack_size"] = pack_qty
-#                 new_item["custom_stock"] = "Available"
-#                 new_item["custom_batch_no"] = batches[0].batch_no if batches else ''
-#                 new_item["custom_supplier_warehouse"] = warehouse
-#                 new_items.append(new_item)
-#                 continue  # skip the rest of logic for this item
-
-#         # Standard handling for qty > 1
-#         for entry in stock_entries:
-#             pack_size = entry.pack_size
-#             stock_qty = entry.stock_qty
-#             warehouse = entry.warehouse
-#             pack_qty = frappe.get_value("Pack Size", pack_size, "quantity")
-
-#             if not pack_qty or stock_qty <= 0:
-#                 continue
-
-#             max_packs = math.floor(stock_qty / pack_qty)
-#             usable_packs = min(math.floor(remaining_qty / pack_qty), max_packs)
-
-#             if usable_packs <= 0:
-#                 continue
-
-#             used_qty = usable_packs * pack_qty
-#             fifo_combo.append({
-#                 "pack_size": pack_size,
-#                 "pack_qty": pack_qty,
-#                 "packs": usable_packs,
-#                 "qty": used_qty,
-#                 "stock_qty": stock_qty,
-#                 "custom_supplier_warehouse": warehouse
-#             })
-
-#             qty_used += used_qty
-#             remaining_qty -= used_qty
-
-#             if remaining_qty <= 0:
-#                 break
-
-#         doc.remove(item)
-
-#         if qty_used == 0:
-#             # No usable stock found at all
-#             unavailable_item = item.as_dict().copy()
-#             unavailable_item["qty"] = requested_qty
-#             unavailable_item["custom_bundle_sizeuom"] = None
-#             unavailable_item["custom_no_of_packs"] = 0
-#             unavailable_item["custom_available_qty"] = 0
-#             unavailable_item["custom_pack_size"] = 0
-#             unavailable_item["custom_stock"] = "Unavailable"
-#             unavailable_item["custom_batch_no"] = ''
-#             new_items.append(unavailable_item)
-#             continue
-
-#         # Use FIFO combo to create split items
-#         for row in fifo_combo:
-#             batches = get_batch_fifo_wise(item_code, row["custom_supplier_warehouse"], row["pack_size"])
-#             new_item = item.as_dict().copy()
-#             new_item["qty"] = row["qty"]
-#             new_item["custom_bundle_sizeuom"] = row["pack_size"]
-#             new_item["custom_no_of_packs"] = row["packs"]
-#             new_item["custom_available_qty"] = row["stock_qty"]
-#             new_item["custom_pack_size"] = row["pack_qty"]
-#             new_item["custom_stock"] = "Available"
-#             new_item["custom_batch_no"] = batches[0].batch_no if batches else ''
-#             new_item["custom_supplier_warehouse"] = row["custom_supplier_warehouse"]
-#             new_items.append(new_item)
-
-#     # Replace items
-#     doc.set("items", [])
-#     for i in new_items:
-#         doc.append("items", i)
-
-#     total_items = len(doc.items)
-#     available_count = sum(1 for i in doc.items if i.custom_stock == "Available")
-#     doc.custom_states_ = "Approved" if available_count > 0 else "Pending For Approval"
-
-
 @frappe.whitelist()
 def update_custom_states(doc, method):
     import math
@@ -347,7 +217,7 @@ def update_custom_states(doc, method):
             new_item["custom_pack_size"] = row["pack_qty"]
             new_item["custom_stock"] = "Available"
             new_item["custom_batch_no"] = batches[0].batch_no if batches else ''
-            new_item["custom_supplier_warehouse"] = row["custom_supplier_warehouse"]
+            new_item["custom_supplier_warehouse"] = doc.custom_warehouse
             new_items.append(new_item)
 
     # Replace items in the document
